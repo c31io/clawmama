@@ -1,8 +1,11 @@
 """Security utilities for VM isolation."""
 
+import logging
 import subprocess
 
 from clawmama.config import config
+
+logger = logging.getLogger("clawmama.security")
 
 
 class VMSecurity:
@@ -104,7 +107,7 @@ class VMSecurity:
             return True
 
         except subprocess.CalledProcessError as e:
-            print(f"Failed to setup network isolation: {e}")
+            logger.error(f"Failed to setup network isolation: {e}")
             return False
 
     def remove_network_isolation(self):
@@ -186,7 +189,7 @@ class SecurityManager:
             return True
 
         except Exception as e:
-            print(f"Failed to setup host protection: {e}")
+            logger.error(f"Failed to setup host protection: {e}")
             return False
 
     @staticmethod

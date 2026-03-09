@@ -172,5 +172,17 @@ class Config:
         """Get backup compression level (zstd 1-22)."""
         return self._config.get("backup", {}).get("compression", 3)
 
+    @property
+    def log_dir(self) -> Path:
+        """Get log directory path."""
+        return _expand_path(
+            self._config.get("log", {}).get("dir", "~/.local/share/clawmama/logs")
+        )
+
+    @property
+    def log_level(self) -> str:
+        """Get log level."""
+        return self._config.get("log", {}).get("level", "info")
+
 
 config = Config()

@@ -41,6 +41,13 @@ security:
   max_memory_mib: 4096
   max_disk_gb: 20
 
+# Logging settings
+log:
+  # Directory to store logs
+  dir: "~/.local/share/clawmama/logs"
+  # Log level: debug, info, warning, error, critical
+  level: info
+
 # Backup settings
 backup:
   # Directory to store backups

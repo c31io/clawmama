@@ -1,11 +1,14 @@
 """VM Provisioner - sets up Ubuntu with OpenClaw."""
 
+import logging
 import os
 import subprocess
 import urllib.request
 from pathlib import Path
 
 from clawmama.config import config
+
+logger = logging.getLogger("clawmama.provisioner")
 
 
 class VMProvisioner:
@@ -37,7 +40,7 @@ class VMProvisioner:
             return str(kernel_path)
 
         self._ensure_dirs()
-        print(f"Downloading Firecracker kernel to {kernel_path}...")
+        logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
         # Download with progress
         urllib.request.urlretrieve(self.FIRECRACKER_KERNEL_URL, kernel_path)
@@ -52,7 +55,7 @@ class VMProvisioner:
             return str(image_path)
 
         self._ensure_dirs()
-        print(f"Downloading Ubuntu base image to {image_path}...")
+        logger.info(f"Downloading Ubuntu base image to {image_path}...")
 
         # Download Ubuntu cloud image
         urllib.request.urlretrieve(self.UBUNTU_IMAGE_URL, image_path)
@@ -96,7 +99,7 @@ class VMProvisioner:
         """Install OpenClaw in the VM disk."""
         # This would need to be done via guestfish or similar
         # For now, we'll set up cloud-init to install it on first boot
-        print(f"Setting up OpenClaw installation for {vm_name}")
+        logger.info(f"Setting up OpenClaw installation for {vm_name}")
 
         # Create cloud-init user-data
         cloud_init_dir = Path(disk_path).parent / "cloud-init"
@@ -186,7 +189,7 @@ runcmd:
             return True
 
         except subprocess.CalledProcessError as e:
-            print(f"Failed to setup networking: {e}")
+            logger.error(f"Failed to setup networking: {e}")
             return False
 
     async def prepare(self):

@@ -2,13 +2,13 @@
 """ClawMama - Telegram bot for Firecracker microVM management."""
 
 import asyncio
-import logging
 import sys
 from pathlib import Path
 
 from telegram.ext import Application
 
 from clawmama.config import config
+from clawmama.logging_ import setup_logging
 from clawmama.bot.handlers import setup_handlers
 from clawmama.vm import VMDatabase, SecurityManager, VMProvisioner
 
@@ -35,11 +35,7 @@ async def setup_environment():
 async def main():
     """Main entry point."""
     # Setup logging
-    logging.basicConfig(
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        level=logging.INFO,
-    )
-    logger = logging.getLogger(__name__)
+    logger = setup_logging()
 
     # Check bot token
     token = config.bot_token

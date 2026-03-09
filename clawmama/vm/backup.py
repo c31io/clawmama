@@ -1,5 +1,6 @@
 """Backup and recovery module for VMs."""
 
+import logging
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,8 @@ import zstandard as zstd
 
 from clawmama.config import config
 from clawmama.vm.database import VMDatabase
+
+logger = logging.getLogger("clawmama.backup")
 
 
 class BackupManager:
@@ -60,7 +63,7 @@ class BackupManager:
             }
 
         except Exception as e:
-            print(f"Backup failed: {e}")
+            logger.error(f"Backup failed: {e}")
             # Clean up failed backup
             if backup_path.exists():
                 backup_path.unlink()
@@ -120,7 +123,7 @@ class BackupManager:
             }
 
         except Exception as e:
-            print(f"Restore failed: {e}")
+            logger.error(f"Restore failed: {e}")
             return None
 
     async def delete_backup(self, backup_id: int) -> bool:
@@ -175,7 +178,7 @@ class BackupManager:
                         tar.add(vm_dir, arcname=vm_name)
             return True
         except Exception as e:
-            print(f"Export failed: {e}")
+            logger.error(f"Export failed: {e}")
             return False
 
     async def import_vm(self, import_path: str, vm_name: str) -> bool:
@@ -199,5 +202,5 @@ class BackupManager:
             # (The tar uses the original name)
             return True
         except Exception as e:
-            print(f"Import failed: {e}")
+            logger.error(f"Import failed: {e}")
             return False
