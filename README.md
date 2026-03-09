@@ -71,7 +71,3 @@ uv run python main.py
 - Network isolation: VMs use NAT with outbound-only traffic
 - Resource limits: Configurable vCPUs, memory, and disk caps
 - Host protection: Blocked access to host IP and localhost
-
-## License
-
-MIT
