@@ -19,13 +19,28 @@ class Config:
         return cls._instance
 
     def _load_config(self):
-        """Load configuration from config.yaml."""
-        config_path = Path(__file__).parent.parent / "config.yaml"
-        if config_path.exists():
-            with open(config_path, "r") as f:
-                self._config = yaml.safe_load(f) or {}
-        else:
-            self._config = {}
+        """Load configuration following XDG conventions.
+
+        Search order:
+        1. $XDG_CONFIG_HOME/clawmama/config.yaml
+        2. ./config.yaml (local development)
+        """
+        # XDG_CONFIG_HOME defaults to ~/.config
+        xdg_config = os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        xdg_config_path = Path(xdg_config) / "clawmama" / "config.yaml"
+
+        config_paths = [
+            xdg_config_path,
+            Path(__file__).parent.parent / "config.yaml",
+        ]
+
+        for config_path in config_paths:
+            if config_path.exists():
+                with open(config_path, "r") as f:
+                    self._config = yaml.safe_load(f) or {}
+                return
+
+        self._config = {}
 
     @property
     def bot_token(self) -> str:

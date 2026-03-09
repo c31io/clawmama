@@ -40,3 +40,4 @@ Thumbs.db
 *.db
 *.log
 config_local.yaml
+config.yaml
