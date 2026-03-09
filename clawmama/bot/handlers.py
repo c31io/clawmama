@@ -63,7 +63,7 @@ Available commands:
 /list - List all VMs
 /create - Create a new VM
 /status <name> - Check VM status
-/vmstart <name> - Start a VM
+/run <name> - Start a VM
 /stop <name> - Stop a VM
 /pause <name> - Pause a VM
 /resume <name> - Resume a VM
@@ -145,9 +145,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /vmstart command - start a VM."""
+    """Handle /run command - start a VM."""
     if not context.args:
-        await update.message.reply_text("Usage: /vmstart <vm_name>")
+        await update.message.reply_text("Usage: /run <vm_name>")
         return
 
     vm_name = context.args[0]
@@ -475,7 +475,7 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ VM '{vm_name}' created!\n\n"
         f"Resources: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk\n\n"
-        f"Start it with: /vmstart {vm_name}"
+        f"Start it with: /run {vm_name}"
     )
 
     return ConversationHandler.END
@@ -496,7 +496,7 @@ def setup_handlers(application: Application):
     application.add_handler(CommandHandler("status", status_command))
 
     # VM lifecycle commands
-    application.add_handler(CommandHandler("vmstart", start_vm_command))
+    application.add_handler(CommandHandler("run", start_vm_command))
     application.add_handler(CommandHandler("stop", stop_vm_command))
     application.add_handler(CommandHandler("pause", pause_vm_command))
     application.add_handler(CommandHandler("resume", resume_vm_command))

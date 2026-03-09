@@ -45,7 +45,7 @@ uv run python main.py
 | `/list` | List all VMs |
 | `/create` | Create a new VM (interactive) |
 | `/status <name>` | Check VM status |
-| `/vmstart <name>` | Start a VM |
+| `/run <name>` | Start a VM |
 | `/stop <name>` | Stop a VM |
 | `/pause <name>` | Pause a VM |
 | `/resume <name>` | Resume a VM |
