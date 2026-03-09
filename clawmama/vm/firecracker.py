@@ -138,7 +138,7 @@ class FirecrackerManager:
         ]
 
         # Create subprocess with nohup to prevent signal handling
-        process = subprocess.Popen(
+        subprocess.Popen(
             cmd,
             stdout=open(self.vm_dir / "firecracker.log", "w"),
             stderr=subprocess.STDOUT,

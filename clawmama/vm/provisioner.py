@@ -1,5 +1,4 @@
 """VM Provisioner - sets up Ubuntu with OpenClaw."""
-import asyncio
 import os
 import subprocess
 import urllib.request

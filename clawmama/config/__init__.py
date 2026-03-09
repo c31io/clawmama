@@ -1,6 +1,5 @@
 """Configuration module for ClawMama."""
 import os
-import shutil
 from pathlib import Path
 from typing import Any
 

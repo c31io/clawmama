@@ -326,15 +326,15 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text)
         return
 
-    await update.message.reply_text(f"Recovering VM from backup...")
+    await update.message.reply_text("Recovering VM from backup...")
 
     try:
         result = await get_backup_manager().restore_backup(vm_name, backup_id=backup_id)
 
         if result:
             await update.message.reply_text(
-                f"✅ VM recovered from backup!\n"
-                f"Note: You may need to restart the VM."
+                "✅ VM recovered from backup!\n"
+                "Note: You may need to restart the VM."
             )
         else:
             await update.message.reply_text("❌ Recovery failed")

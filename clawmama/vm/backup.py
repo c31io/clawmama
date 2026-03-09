@@ -1,8 +1,5 @@
 """Backup and recovery module for VMs."""
 import gzip
-import os
-import shutil
-import subprocess
 import tarfile
 from datetime import datetime
 from pathlib import Path
