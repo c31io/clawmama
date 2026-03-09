@@ -45,5 +45,5 @@ security:
 backup:
   # Directory to store backups
   dir: "~/.local/share/clawmama/backups"
-  # Compression level (1-9)
-  compression: 6
+  # Compression level (1-22, higher = more compression)
+  compression: 3

@@ -1,12 +1,12 @@
 """Backup and recovery module for VMs."""
 
-import gzip
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import aiosqlite
+import zstandard as zstd
 
 from clawmama.config import config
 from clawmama.vm.database import VMDatabase
@@ -34,16 +34,17 @@ class BackupManager:
         # Create backup filename with timestamp
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_name = f"{vm_name}_{timestamp}"
-        backup_path = self.backup_dir / f"{backup_name}.tar.gz"
+        backup_path = self.backup_dir / f"{backup_name}.tar.zst"
 
         # Create backup archive
         compression_level = config.backup_compression
 
         try:
-            with gzip.open(backup_path, f"wb{compression_level}") as gz:
-                with tarfile.open(fileobj=gz, mode="w:") as tar:  # type: ignore[arg-type]
-                    # Add VM directory contents
-                    tar.add(vm_dir, arcname=vm_name)
+            with open(backup_path, "wb") as f:
+                cctx = zstd.ZstdCompressor(level=compression_level)
+                with cctx.stream_writer(f) as writer:
+                    with tarfile.open(fileobj=writer, mode="w") as tar:
+                        tar.add(vm_dir, arcname=vm_name)
 
             # Get backup size
             backup_size = backup_path.stat().st_size
@@ -106,10 +107,11 @@ class BackupManager:
 
         # Extract backup
         try:
-            with gzip.open(backup_file, "rb") as gz:
-                with tarfile.open(fileobj=gz, mode="r:") as tar:
-                    # Extract to VM directory
-                    tar.extractall(new_vm_dir)
+            with open(backup_file, "rb") as f:
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(f) as reader:
+                    with tarfile.open(fileobj=reader, mode="r") as tar:
+                        tar.extractall(new_vm_dir)
 
             return {
                 "success": True,
@@ -166,9 +168,11 @@ class BackupManager:
         compression_level = config.backup_compression
 
         try:
-            with gzip.open(export_file, f"wb{compression_level}") as gz:
-                with tarfile.open(fileobj=gz, mode="w:") as tar:  # type: ignore[arg-type]
-                    tar.add(vm_dir, arcname=vm_name)
+            with open(export_file, "wb") as f:
+                cctx = zstd.ZstdCompressor(level=compression_level)
+                with cctx.stream_writer(f) as writer:
+                    with tarfile.open(fileobj=writer, mode="w") as tar:
+                        tar.add(vm_dir, arcname=vm_name)
             return True
         except Exception as e:
             print(f"Export failed: {e}")
@@ -185,9 +189,11 @@ class BackupManager:
             return False
 
         try:
-            with gzip.open(import_file, "rb") as gz:
-                with tarfile.open(fileobj=gz, mode="r:") as tar:
-                    tar.extractall(Path(config.vm_dir))
+            with open(import_file, "rb") as f:
+                dctx = zstd.ZstdDecompressor()
+                with dctx.stream_reader(f) as reader:
+                    with tarfile.open(fileobj=reader, mode="r") as tar:
+                        tar.extractall(Path(config.vm_dir))
 
             # Rename extracted directory to vm_name
             # (The tar uses the original name)

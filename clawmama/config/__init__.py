@@ -169,8 +169,8 @@ class Config:
 
     @property
     def backup_compression(self) -> int:
-        """Get backup compression level."""
-        return self._config.get("backup", {}).get("compression", 6)
+        """Get backup compression level (zstd 1-22)."""
+        return self._config.get("backup", {}).get("compression", 3)
 
 
 config = Config()
