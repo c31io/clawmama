@@ -1,7 +1,4 @@
 """Telegram bot handlers."""
-import asyncio
-from datetime import datetime
-
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -24,10 +21,34 @@ from vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
     CREATE_DISK,
 ) = range(4)
 
-# Global database instance
-db = VMDatabase()
-backup_manager = BackupManager(db)
-provisioner = VMProvisioner()
+# Global database instance (initialized lazily)
+db = None
+backup_manager = None
+provisioner = None
+
+
+def get_db():
+    """Get or create database instance."""
+    global db
+    if db is None:
+        db = VMDatabase()
+    return db
+
+
+def get_backup_manager():
+    """Get or create backup manager instance."""
+    global backup_manager
+    if backup_manager is None:
+        backup_manager = BackupManager(get_db())
+    return backup_manager
+
+
+def get_provisioner():
+    """Get or create provisioner instance."""
+    global provisioner
+    if provisioner is None:
+        provisioner = VMProvisioner()
+    return provisioner
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,7 +63,7 @@ Available commands:
 /list - List all VMs
 /create - Create a new VM
 /status <name> - Check VM status
-/start <name> - Start a VM
+/vmstart <name> - Start a VM
 /stop <name> - Stop a VM
 /pause <name> - Pause a VM
 /resume <name> - Resume a VM
@@ -62,7 +83,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /list command - show all VMs."""
-    vms = await db.list_vms()
+    vms = await get_db().list_vms()
 
     if not vms:
         await update.message.reply_text("No VMs found. Create one with /create")
@@ -93,7 +114,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -130,7 +151,7 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -148,8 +169,8 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Start the VM
         ip_address = await fc.start_vm()
 
-        await db.update_vm_state(vm_name, "running")
-        await db.update_vm_ip(vm_name, ip_address)
+        await get_db().update_vm_state(vm_name, "running")
+        await get_db().update_vm_ip(vm_name, ip_address)
 
         await update.message.reply_text(
             f"✅ VM '{vm_name}' started!\n"
@@ -167,7 +188,7 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -183,7 +204,7 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fc = FirecrackerManager(vm_name)
         await fc.stop_vm()
 
-        await db.update_vm_state(vm_name, "stopped")
+        await get_db().update_vm_state(vm_name, "stopped")
 
         await update.message.reply_text(f"✅ VM '{vm_name}' stopped!")
     except Exception as e:
@@ -197,7 +218,7 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -211,7 +232,7 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fc = FirecrackerManager(vm_name)
         await fc.pause_vm()
 
-        await db.update_vm_state(vm_name, "paused")
+        await get_db().update_vm_state(vm_name, "paused")
 
         await update.message.reply_text(f"⏸️ VM '{vm_name}' paused!")
     except Exception as e:
@@ -225,7 +246,7 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -239,7 +260,7 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fc = FirecrackerManager(vm_name)
         await fc.resume_vm()
 
-        await db.update_vm_state(vm_name, "running")
+        await get_db().update_vm_state(vm_name, "running")
 
         await update.message.reply_text(f"▶️ VM '{vm_name}' resumed!")
     except Exception as e:
@@ -253,7 +274,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -262,7 +283,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Creating backup of '{vm_name}'...")
 
     try:
-        backup = await backup_manager.create_backup(vm_name)
+        backup = await get_backup_manager().create_backup(vm_name)
 
         if backup:
             size_mb = backup["size_bytes"] / (1024 * 1024)
@@ -286,14 +307,14 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vm_name = context.args[0]
     backup_id = int(context.args[1]) if len(context.args) > 1 else None
 
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
         return
 
     # List available backups if no ID provided
     if not backup_id:
-        backups = await backup_manager.list_backups(vm_name)
+        backups = await get_backup_manager().list_backups(vm_name)
         if not backups:
             await update.message.reply_text(f"No backups found for '{vm_name}'")
             return
@@ -308,7 +329,7 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Recovering VM from backup...")
 
     try:
-        result = await backup_manager.restore_backup(vm_name, backup_id=backup_id)
+        result = await get_backup_manager().restore_backup(vm_name, backup_id=backup_id)
 
         if result:
             await update.message.reply_text(
@@ -328,7 +349,7 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    vm = await db.get_vm(vm_name)
+    vm = await get_db().get_vm(vm_name)
 
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -345,7 +366,7 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fc = FirecrackerManager(vm_name)
         await fc.delete_vm()
 
-        await db.delete_vm(vm_name)
+        await get_db().delete_vm(vm_name)
 
         await update.message.reply_text(f"🗑️ VM '{vm_name}' deleted!")
     except Exception as e:
@@ -374,7 +395,7 @@ async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CREATE_NAME
 
     # Check if VM already exists
-    existing = await db.get_vm(vm_name)
+    existing = await get_db().get_vm(vm_name)
     if existing:
         await update.message.reply_text(f"VM '{vm_name}' already exists.")
         return ConversationHandler.END
@@ -449,7 +470,7 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     memory = context.user_data["memory_mib"]
 
     # Create VM record
-    await db.create_vm(vm_name, vcpus, memory, disk)
+    await get_db().create_vm(vm_name, vcpus, memory, disk)
 
     await update.message.reply_text(
         f"✅ VM '{vm_name}' created!\n\n"
@@ -475,7 +496,7 @@ def setup_handlers(application: Application):
     application.add_handler(CommandHandler("status", status_command))
 
     # VM lifecycle commands
-    application.add_handler(CommandHandler("start", start_vm_command))
+    application.add_handler(CommandHandler("vmstart", start_vm_command))
     application.add_handler(CommandHandler("stop", stop_vm_command))
     application.add_handler(CommandHandler("pause", pause_vm_command))
     application.add_handler(CommandHandler("resume", resume_vm_command))

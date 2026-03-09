@@ -3,11 +3,11 @@ import asyncio
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Optional
 
 import aiohttp
+from aiohttp import UnixConnector
 
 from config import config
 
@@ -163,7 +163,7 @@ class FirecrackerManager:
                 capture_output=True
             )
             subprocess.run(
-                ["ip", "link", "set", "tap_iface", "up"],
+                ["ip", "link", "set", tap_iface, "up"],
                 check=True,
                 capture_output=True
             )
@@ -190,12 +190,12 @@ class FirecrackerManager:
     async def stop_vm(self) -> bool:
         """Stop the Firecracker microVM."""
         try:
-            async with aiohttp.ClientSession() as session:
+            connector = UnixConnector(path=self.socket_path)
+            async with aiohttp.ClientSession(connector=connector) as session:
                 # Send CtrlAltDel
                 await session.put(
-                    f"http://localhost/-actions",
-                    params={"action_type": "SendCtrlAltDel"},
-                    socket=self.socket_path
+                    "http://localhost/-actions",
+                    params={"action_type": "SendCtrlAltDel"}
                 )
         except Exception:
             pass
@@ -224,32 +224,30 @@ class FirecrackerManager:
 
     async def pause_vm(self) -> bool:
         """Pause the VM (freeze CPU)."""
-        async with aiohttp.ClientSession() as session:
+        connector = UnixConnector(path=self.socket_path)
+        async with aiohttp.ClientSession(connector=connector) as session:
             await session.put(
-                f"http://localhost/vm",
-                params={"action_type": "Pause"},
-                socket=self.socket_path
+                "http://localhost/vm",
+                params={"action_type": "Pause"}
             )
         return True
 
     async def resume_vm(self) -> bool:
         """Resume the VM (unfreeze CPU)."""
-        async with aiohttp.ClientSession() as session:
+        connector = UnixConnector(path=self.socket_path)
+        async with aiohttp.ClientSession(connector=connector) as session:
             await session.put(
-                f"http://localhost/vm",
-                params={"action_type": "Resume"},
-                socket=self.socket_path
+                "http://localhost/vm",
+                params={"action_type": "Resume"}
             )
         return True
 
     async def get_status(self) -> dict:
         """Get VM status."""
         try:
-            async with aiohttp.ClientSession() as session:
-                resp = await session.get(
-                    "http://localhost/vm",
-                    socket=self.socket_path
-                )
+            connector = UnixConnector(path=self.socket_path)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                resp = await session.get("http://localhost/vm")
                 return await resp.json()
         except Exception:
             return {"state": "stopped"}
@@ -257,11 +255,9 @@ class FirecrackerManager:
     async def get_instance_info(self) -> dict:
         """Get VM instance info."""
         try:
-            async with aiohttp.ClientSession() as session:
-                resp = await session.get(
-                    "http://localhost/instance-info",
-                    socket=self.socket_path
-                )
+            connector = UnixConnector(path=self.socket_path)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                resp = await session.get("http://localhost/instance-info")
                 return await resp.json()
         except Exception:
             return {}
