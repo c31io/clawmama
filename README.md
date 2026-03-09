@@ -2,6 +2,12 @@
 
 Telegram bot for managing Firecracker microVMs with OpenClaw.
 
+> **Warning: Early Stage** - This project is under active development. APIs and features may change.
+
+## Contributing
+
+Contributions welcome! Please open an issue or PR on GitHub.
+
 ## Features
 
 - Create and manage Ubuntu microVMs using Firecracker
