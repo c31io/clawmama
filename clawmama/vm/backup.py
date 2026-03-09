@@ -1,4 +1,5 @@
 """Backup and recovery module for VMs."""
+
 import gzip
 import tarfile
 from datetime import datetime, timezone
@@ -54,7 +55,7 @@ class BackupManager:
                 "name": backup_name,
                 "path": str(backup_path),
                 "size_bytes": backup_size,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -113,7 +114,7 @@ class BackupManager:
             return {
                 "success": True,
                 "path": str(new_vm_dir),
-                "backup_file": str(backup_file)
+                "backup_file": str(backup_file),
             }
 
         except Exception as e:
@@ -126,8 +127,7 @@ class BackupManager:
         async with aiosqlite.connect(self.db.db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                "SELECT path FROM backups WHERE id = ?",
-                (backup_id,)
+                "SELECT path FROM backups WHERE id = ?", (backup_id,)
             )
             row = await cursor.fetchone()
 

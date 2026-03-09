@@ -1,4 +1,5 @@
 """Database module for VM state management."""
+
 import aiosqlite
 from pathlib import Path
 from typing import Optional
@@ -61,13 +62,20 @@ class VMDatabase:
                                 ip_address, socket_path, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (name, "stopped", vcpus, memory_mib, disk_gb,
-                 ip_address, socket_path, now, now)
+                (
+                    name,
+                    "stopped",
+                    vcpus,
+                    memory_mib,
+                    disk_gb,
+                    ip_address,
+                    socket_path,
+                    now,
+                    now,
+                ),
             )
             await db.commit()
-            cursor = await db.execute(
-                "SELECT id FROM vms WHERE name = ?", (name,)
-            )
+            cursor = await db.execute("SELECT id FROM vms WHERE name = ?", (name,))
             row = await cursor.fetchone()
             return row[0] if row else None
 
@@ -75,9 +83,7 @@ class VMDatabase:
         """Get VM by name."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute(
-                "SELECT * FROM vms WHERE name = ?", (name,)
-            )
+            cursor = await db.execute("SELECT * FROM vms WHERE name = ?", (name,))
             row = await cursor.fetchone()
             return dict(row) if row else None
 
@@ -95,7 +101,7 @@ class VMDatabase:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "UPDATE vms SET state = ?, updated_at = ? WHERE name = ?",
-                (state, now, name)
+                (state, now, name),
             )
             await db.commit()
 
@@ -105,7 +111,7 @@ class VMDatabase:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "UPDATE vms SET ip_address = ?, updated_at = ? WHERE name = ?",
-                (ip_address, now, name)
+                (ip_address, now, name),
             )
             await db.commit()
 
@@ -115,12 +121,7 @@ class VMDatabase:
             await db.execute("DELETE FROM vms WHERE name = ?", (name,))
             await db.commit()
 
-    async def add_backup(
-        self,
-        vm_name: str,
-        path: str,
-        size_bytes: int | None = None
-    ):
+    async def add_backup(self, vm_name: str, path: str, size_bytes: int | None = None):
         """Add a backup record."""
         now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(self.db_path) as db:
@@ -129,7 +130,7 @@ class VMDatabase:
                 INSERT INTO backups (vm_name, path, size_bytes, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (vm_name, path, size_bytes, now)
+                (vm_name, path, size_bytes, now),
             )
             await db.commit()
 
@@ -139,7 +140,7 @@ class VMDatabase:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 "SELECT * FROM backups WHERE vm_name = ? ORDER BY created_at DESC",
-                (vm_name,)
+                (vm_name,),
             )
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]

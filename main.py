@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """ClawMama - Telegram bot for Firecracker microVM management."""
+
 import asyncio
 import logging
 import sys

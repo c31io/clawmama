@@ -1,4 +1,5 @@
 """VM Provisioner - sets up Ubuntu with OpenClaw."""
+
 import os
 import subprocess
 import urllib.request
@@ -12,14 +13,12 @@ class VMProvisioner:
 
     # Ubuntu cloud image URL (Focal Fossa)
     UBUNTU_IMAGE_URL = (
-        "https://cloud-images.ubuntu.com/focal/current/"
-        "focal-server-cloudimg-amd64.img"
+        "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
     )
 
     # Firecracker kernel URL
     FIRECRACKER_KERNEL_URL = (
-        "https://s3.amazonaws.com/firecracker-artifacts-core/"
-        "vmlinux/vmlinux-5.10.204"
+        "https://s3.amazonaws.com/firecracker-artifacts-core/vmlinux/vmlinux-5.10.204"
     )
 
     def __init__(self):
@@ -41,10 +40,7 @@ class VMProvisioner:
         print(f"Downloading Firecracker kernel to {kernel_path}...")
 
         # Download with progress
-        urllib.request.urlretrieve(
-            self.FIRECRACKER_KERNEL_URL,
-            kernel_path
-        )
+        urllib.request.urlretrieve(self.FIRECRACKER_KERNEL_URL, kernel_path)
         os.chmod(kernel_path, 0o755)
 
         return str(kernel_path)
@@ -59,10 +55,7 @@ class VMProvisioner:
         print(f"Downloading Ubuntu base image to {image_path}...")
 
         # Download Ubuntu cloud image
-        urllib.request.urlretrieve(
-            self.UBUNTU_IMAGE_URL,
-            image_path
-        )
+        urllib.request.urlretrieve(self.UBUNTU_IMAGE_URL, image_path)
 
         return str(image_path)
 
@@ -82,19 +75,12 @@ class VMProvisioner:
         if not disk_path.exists():
             base_image = await self.download_base_image()
             # Copy and resize
-            subprocess.run(
-                ["cp", base_image, disk_path],
-                check=True
-            )
+            subprocess.run(["cp", base_image, disk_path], check=True)
             # Resize disk
             subprocess.run(
-                ["truncate", "-s", f"{disk_gb}G", str(disk_path)],
-                check=True
+                ["truncate", "-s", f"{disk_gb}G", str(disk_path)], check=True
             )
-            subprocess.run(
-                ["resize2fs", str(disk_path)],
-                check=True
-            )
+            subprocess.run(["resize2fs", str(disk_path)], check=True)
 
         # Mount and configure
         if with_openclaw:
@@ -151,7 +137,7 @@ runcmd:
             subprocess.run(
                 ["ip", "link", "add", "br-clawmama", "type", "bridge"],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
         except subprocess.CalledProcessError:
             pass  # Bridge might already exist
@@ -165,33 +151,36 @@ runcmd:
             # Add NAT rule
             subprocess.run(
                 [
-                    "iptables", "-t", "nat", "-A", "POSTROUTING",
-                    "-s", "172.30.0.0/30", "!", "-d", "172.30.0.0/30",
-                    "-j", "MASQUERADE"
+                    "iptables",
+                    "-t",
+                    "nat",
+                    "-A",
+                    "POSTROUTING",
+                    "-s",
+                    "172.30.0.0/30",
+                    "!",
+                    "-d",
+                    "172.30.0.0/30",
+                    "-j",
+                    "MASQUERADE",
                 ],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Allow forwarding from bridge
             subprocess.run(
-                [
-                    "iptables", "-A", "FORWARD", "-i", "br-clawmama",
-                    "-j", "ACCEPT"
-                ],
+                ["iptables", "-A", "FORWARD", "-i", "br-clawmama", "-j", "ACCEPT"],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Block inbound to VMs (security)
             if config.block_inbound:
                 subprocess.run(
-                    [
-                        "iptables", "-A", "INPUT", "-i", "br-clawmama",
-                        "-j", "DROP"
-                    ],
+                    ["iptables", "-A", "INPUT", "-i", "br-clawmama", "-j", "DROP"],
                     check=True,
-                    capture_output=True
+                    capture_output=True,
                 )
 
             return True

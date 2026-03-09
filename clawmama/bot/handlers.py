@@ -1,4 +1,5 @@
 """Telegram bot handlers."""
+
 from typing import TYPE_CHECKING, Any
 
 from telegram import Update
@@ -146,19 +147,19 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }.get(vm["state"], f"❓ {vm['state']}")
 
     text = f"""
-<b>VM: {vm['name']}</b>
+<b>VM: {vm["name"]}</b>
 
 {state_emoji}
 
 <b>Resources:</b>
-- vCPUs: {vm['vcpus']}
-- Memory: {vm['memory_mib']} MB
-- Disk: {vm['disk_gb']} GB
+- vCPUs: {vm["vcpus"]}
+- Memory: {vm["memory_mib"]} MB
+- Disk: {vm["disk_gb"]} GB
 
 <b>Network:</b>
-- IP: {vm.get('ip_address', 'N/A')}
+- IP: {vm.get("ip_address", "N/A")}
 
-<b>Created:</b> {vm['created_at']}
+<b>Created:</b> {vm["created_at"]}
 """
     await update.message.reply_text(text, parse_mode="HTML")
 
@@ -318,9 +319,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if backup:
             size_mb = backup["size_bytes"] / (1024 * 1024)
             await update.message.reply_text(
-                f"✅ Backup created!\n"
-                f"File: {backup['path']}\n"
-                f"Size: {size_mb:.2f} MB"
+                f"✅ Backup created!\nFile: {backup['path']}\nSize: {size_mb:.2f} MB"
             )
         else:
             await update.message.reply_text("❌ Backup failed")
@@ -365,8 +364,7 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if result:
             await update.message.reply_text(
-                "✅ VM recovered from backup!\n"
-                "Note: You may need to restart the VM."
+                "✅ VM recovered from backup!\nNote: You may need to restart the VM."
             )
         else:
             await update.message.reply_text("❌ Recovery failed")
@@ -413,8 +411,7 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
     await update.message.reply_text(
-        "Creating a new VM...\n\n"
-        "Please enter a name for your VM:"
+        "Creating a new VM...\n\nPlease enter a name for your VM:"
     )
     return CREATE_NAME
 
@@ -575,8 +572,12 @@ def setup_handlers(application: Application):
         entry_points=[CommandHandler("create", create_start)],
         states={
             CREATE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_name)],
-            CREATE_VCPUS: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_vcpus)],
-            CREATE_MEMORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_memory)],
+            CREATE_VCPUS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, create_vcpus)
+            ],
+            CREATE_MEMORY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, create_memory)
+            ],
             CREATE_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_disk)],
         },
         fallbacks=[CommandHandler("cancel", create_cancel)],

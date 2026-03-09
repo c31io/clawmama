@@ -1,4 +1,5 @@
 """Security utilities for VM isolation."""
+
 import subprocess
 
 from clawmama.config import config
@@ -31,53 +32,69 @@ class VMSecurity:
         try:
             # Allow outbound traffic
             subprocess.run(
-                [
-                    "iptables", "-A", "OUTPUT", "-s", self.vm_ip,
-                    "-j", "ACCEPT"
-                ],
+                ["iptables", "-A", "OUTPUT", "-s", self.vm_ip, "-j", "ACCEPT"],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Drop inbound traffic (except established/related)
             subprocess.run(
                 [
-                    "iptables", "-A", "INPUT", "-d", self.vm_ip,
-                    "-m", "state", "--state", "ESTABLISHED,RELATED",
-                    "-j", "ACCEPT"
+                    "iptables",
+                    "-A",
+                    "INPUT",
+                    "-d",
+                    self.vm_ip,
+                    "-m",
+                    "state",
+                    "--state",
+                    "ESTABLISHED,RELATED",
+                    "-j",
+                    "ACCEPT",
                 ],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             subprocess.run(
-                [
-                    "iptables", "-A", "INPUT", "-d", self.vm_ip,
-                    "-j", "DROP"
-                ],
+                ["iptables", "-A", "INPUT", "-d", self.vm_ip, "-j", "DROP"],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Block VM from accessing host services
             host_ip = config.host_ip
             subprocess.run(
                 [
-                    "iptables", "-A", "OUTPUT", "-s", self.vm_ip,
-                    "-d", host_ip, "-j", "DROP"
+                    "iptables",
+                    "-A",
+                    "OUTPUT",
+                    "-s",
+                    self.vm_ip,
+                    "-d",
+                    host_ip,
+                    "-j",
+                    "DROP",
                 ],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Block VM from accessing host's localhost
             subprocess.run(
                 [
-                    "iptables", "-A", "OUTPUT", "-s", self.vm_ip,
-                    "-d", "127.0.0.1", "-j", "DROP"
+                    "iptables",
+                    "-A",
+                    "OUTPUT",
+                    "-s",
+                    self.vm_ip,
+                    "-d",
+                    "127.0.0.1",
+                    "-j",
+                    "DROP",
                 ],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
 
             # Block common attack vectors
@@ -95,37 +112,26 @@ class VMSecurity:
         try:
             # Flush rules for this VM
             subprocess.run(
-                [
-                    "iptables", "-F", "INPUT",
-                    "-d", self.vm_ip
-                ],
+                ["iptables", "-F", "INPUT", "-d", self.vm_ip],
                 check=False,
-                capture_output=True
+                capture_output=True,
             )
             subprocess.run(
-                [
-                    "iptables", "-F", "OUTPUT",
-                    "-s", self.vm_ip
-                ],
+                ["iptables", "-F", "OUTPUT", "-s", self.vm_ip],
                 check=False,
-                capture_output=True
+                capture_output=True,
             )
         except Exception:
             pass
 
     def check_vm_access(self) -> dict:
         """Check if VM can access restricted resources."""
-        results = {
-            "host_access": False,
-            "internet_access": True,
-            "other_vms": False
-        }
+        results = {"host_access": False, "internet_access": True, "other_vms": False}
 
         # Check if VM can ping host
         try:
             result = subprocess.run(
-                ["ping", "-c", "1", "-W", "1", config.host_ip],
-                capture_output=True
+                ["ping", "-c", "1", "-W", "1", config.host_ip], capture_output=True
             )
             results["host_access"] = result.returncode == 0
         except Exception:
@@ -189,15 +195,13 @@ class SecurityManager:
         status = {
             "nat_active": False,
             "vm_network": "172.30.0.0/30",
-            "blocked_inbound": config.block_inbound
+            "blocked_inbound": config.block_inbound,
         }
 
         # Check if NAT is active
         try:
             result = subprocess.run(
-                ["iptables", "-t", "nat", "-L", "-n"],
-                capture_output=True,
-                text=True
+                ["iptables", "-t", "nat", "-L", "-n"], capture_output=True, text=True
             )
             status["nat_active"] = "MASQUERADE" in result.stdout
         except Exception:

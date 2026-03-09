@@ -1,4 +1,5 @@
 """Firecracker microVM manager."""
+
 import asyncio
 import json
 import os
@@ -19,10 +20,7 @@ class FirecrackerManager:
         self.vm_name = vm_name
         self.vm_dir = Path(config.vm_dir) / vm_name
         self.socket_path = f"/tmp/firecracker-{vm_name}.sock"
-        self.kernel_args = (
-            "console=ttyS0 reboot=k panic=1 "
-            "ip=dhcp random.trust_cpu=on"
-        )
+        self.kernel_args = "console=ttyS0 reboot=k panic=1 ip=dhcp random.trust_cpu=on"
 
     def _ensure_vm_dir(self):
         """Ensure VM directory exists."""
@@ -58,45 +56,37 @@ class FirecrackerManager:
         disk_path = self._get_drive_path()
         if not Path(disk_path).exists():
             # Create sparse disk image
-            subprocess.run(
-                ["truncate", "-s", f"{disk_gb}G", disk_path],
-                check=True
-            )
+            subprocess.run(["truncate", "-s", f"{disk_gb}G", disk_path], check=True)
             # Format as ext4
-            subprocess.run(
-                ["mkfs.ext4", "-F", disk_path],
-                check=True
-            )
+            subprocess.run(["mkfs.ext4", "-F", disk_path], check=True)
 
         # Generate firecracker config
         fc_config = {
             "boot-source": {
                 "kernel_image_path": config.kernel_path,
-                "boot_args": self.kernel_args
+                "boot_args": self.kernel_args,
             },
             "drives": [
                 {
                     "drive_id": "rootfs",
                     "path_on_host": disk_path,
                     "is_root_device": True,
-                    "is_read_only": False
+                    "is_read_only": False,
                 }
             ],
             "machine-config": {
                 "vcpu_count": vcpus,
                 "mem_size_mib": memory_mib,
-                "ht_enabled": False
+                "ht_enabled": False,
             },
             "network-interfaces": [
                 {
                     "iface_id": "eth0",
                     "guest_mac": self._generate_mac(),
-                    "host_dev_name": self._get_network_iface()
+                    "host_dev_name": self._get_network_iface(),
                 }
             ],
-            "metrics": {
-                "metrics_path": str(self.vm_dir / "metrics.json")
-            }
+            "metrics": {"metrics_path": str(self.vm_dir / "metrics.json")},
         }
 
         # Write config to temp file
@@ -109,7 +99,7 @@ class FirecrackerManager:
             "memory_mib": memory_mib,
             "disk_gb": disk_gb,
             "socket_path": self.socket_path,
-            "config_path": str(config_path)
+            "config_path": str(config_path),
         }
 
     def _generate_mac(self) -> str:
@@ -133,8 +123,10 @@ class FirecrackerManager:
         # Start firecracker in background
         cmd = [
             config.firecracker_binary,
-            "--api-sock", self.socket_path,
-            "--config-file", str(self.vm_dir / "fc_config.json")
+            "--api-sock",
+            self.socket_path,
+            "--config-file",
+            str(self.vm_dir / "fc_config.json"),
         ]
 
         # Create subprocess with nohup to prevent signal handling
@@ -142,7 +134,7 @@ class FirecrackerManager:
             cmd,
             stdout=open(self.vm_dir / "firecracker.log", "w"),
             stderr=subprocess.STDOUT,
-            start_new_session=True
+            start_new_session=True,
         )
 
         # Wait for VM to boot and get IP
@@ -160,17 +152,15 @@ class FirecrackerManager:
             subprocess.run(
                 ["ip", "tuntap", "add", "mode", "tap", "dev", tap_iface],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
             subprocess.run(
-                ["ip", "link", "set", tap_iface, "up"],
-                check=True,
-                capture_output=True
+                ["ip", "link", "set", tap_iface, "up"], check=True, capture_output=True
             )
             subprocess.run(
                 ["ip", "link", "set", tap_iface, "master", "br-clawmama"],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
         except subprocess.CalledProcessError:
             # Interface might already exist, try to find it
@@ -195,17 +185,14 @@ class FirecrackerManager:
                 # Send CtrlAltDel
                 await session.put(
                     "http://localhost/-actions",
-                    params={"action_type": "SendCtrlAltDel"}
+                    params={"action_type": "SendCtrlAltDel"},
                 )
         except Exception:
             pass
 
         # Kill the firecracker process
         try:
-            subprocess.run(
-                ["pkill", "-f", f"firecracker.*{self.vm_name}"],
-                check=True
-            )
+            subprocess.run(["pkill", "-f", f"firecracker.*{self.vm_name}"], check=True)
         except subprocess.CalledProcessError:
             pass
 
@@ -213,9 +200,7 @@ class FirecrackerManager:
         tap_iface = self._get_network_iface()
         try:
             subprocess.run(
-                ["ip", "link", "del", tap_iface],
-                check=True,
-                capture_output=True
+                ["ip", "link", "del", tap_iface], check=True, capture_output=True
             )
         except subprocess.CalledProcessError:
             pass
@@ -226,20 +211,14 @@ class FirecrackerManager:
         """Pause the VM (freeze CPU)."""
         connector = UnixConnector(path=self.socket_path)
         async with aiohttp.ClientSession(connector=connector) as session:
-            await session.put(
-                "http://localhost/vm",
-                params={"action_type": "Pause"}
-            )
+            await session.put("http://localhost/vm", params={"action_type": "Pause"})
         return True
 
     async def resume_vm(self) -> bool:
         """Resume the VM (unfreeze CPU)."""
         connector = UnixConnector(path=self.socket_path)
         async with aiohttp.ClientSession(connector=connector) as session:
-            await session.put(
-                "http://localhost/vm",
-                params={"action_type": "Resume"}
-            )
+            await session.put("http://localhost/vm", params={"action_type": "Resume"})
         return True
 
     async def get_status(self) -> dict:
@@ -274,4 +253,5 @@ class FirecrackerManager:
         # Remove VM directory
         if self.vm_dir.exists():
             import shutil
+
             shutil.rmtree(self.vm_dir)
