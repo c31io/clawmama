@@ -8,9 +8,9 @@ from pathlib import Path
 
 from telegram.ext import Application
 
-from config import config
-from bot.handlers import setup_handlers
-from vm import VMDatabase, SecurityManager, VMProvisioner
+from clawmama.config import config
+from clawmama.bot.handlers import setup_handlers
+from clawmama.vm import VMDatabase, SecurityManager, VMProvisioner
 
 
 async def setup_environment():

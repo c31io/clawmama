@@ -9,8 +9,8 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-from config import config
-from vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
+from clawmama.config import config
+from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
 
 
 # Conversation states
@@ -145,9 +145,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command - start a VM."""
+    """Handle /vmstart command - start a VM."""
     if not context.args:
-        await update.message.reply_text("Usage: /start <vm_name>")
+        await update.message.reply_text("Usage: /vmstart <vm_name>")
         return
 
     vm_name = context.args[0]
@@ -475,7 +475,7 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ VM '{vm_name}' created!\n\n"
         f"Resources: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk\n\n"
-        f"Start it with: /start {vm_name}"
+        f"Start it with: /vmstart {vm_name}"
     )
 
     return ConversationHandler.END

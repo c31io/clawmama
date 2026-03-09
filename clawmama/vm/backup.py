@@ -10,8 +10,8 @@ from typing import Optional
 
 import aiosqlite
 
-from config import config
-from vm.database import VMDatabase
+from clawmama.config import config
+from clawmama.vm.database import VMDatabase
 
 
 class BackupManager:

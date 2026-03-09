@@ -5,7 +5,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-from config import config
+from clawmama.config import config
 
 
 class VMProvisioner:

@@ -4,7 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from config import config
+from clawmama.config import config
 
 
 class VMSecurity:

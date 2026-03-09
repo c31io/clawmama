@@ -9,7 +9,7 @@ from typing import Optional
 import aiohttp
 from aiohttp import UnixConnector
 
-from config import config
+from clawmama.config import config
 
 
 class FirecrackerManager:
