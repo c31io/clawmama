@@ -22,3 +22,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["clawmama*"]
+
+[tool.ty.environment]
+python = ".venv"

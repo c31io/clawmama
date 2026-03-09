@@ -1,9 +1,9 @@
 """VM management module."""
-from vm.database import VMDatabase
-from vm.firecracker import FirecrackerManager
-from vm.provisioner import VMProvisioner
-from vm.security import VMSecurity, SecurityManager
-from vm.backup import BackupManager
+from clawmama.vm.database import VMDatabase
+from clawmama.vm.firecracker import FirecrackerManager
+from clawmama.vm.provisioner import VMProvisioner
+from clawmama.vm.security import VMSecurity, SecurityManager
+from clawmama.vm.backup import BackupManager
 
 __all__ = [
     "VMDatabase",

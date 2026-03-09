@@ -38,9 +38,9 @@ class FirecrackerManager:
 
     async def create_vm(
         self,
-        vcpus: int = None,
-        memory_mib: int = None,
-        disk_gb: int = None,
+        vcpus: int | None = None,
+        memory_mib: int | None = None,
+        disk_gb: int | None = None,
     ) -> dict:
         """Create a new Firecracker microVM."""
         vcpus = vcpus or config.default_vcpus
@@ -118,7 +118,7 @@ class FirecrackerManager:
         mac_int = hash(self.vm_name) % (256**3)
         return f"02:00:00:{mac_int:06x}"
 
-    async def start_vm(self) -> bool:
+    async def start_vm(self) -> str | None:
         """Start the Firecracker microVM."""
         if not Path(config.kernel_path).exists():
             raise FileNotFoundError(

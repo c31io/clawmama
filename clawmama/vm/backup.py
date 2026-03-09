@@ -1,7 +1,7 @@
 """Backup and recovery module for VMs."""
 import gzip
 import tarfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -31,7 +31,7 @@ class BackupManager:
             return None
 
         # Create backup filename with timestamp
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         backup_name = f"{vm_name}_{timestamp}"
         backup_path = self.backup_dir / f"{backup_name}.tar.gz"
 
@@ -40,7 +40,7 @@ class BackupManager:
 
         try:
             with gzip.open(backup_path, f"wb{compression_level}") as gz:
-                with tarfile.open(fileobj=gz, mode="w") as tar:
+                with tarfile.open(fileobj=gz, mode="w:") as tar:  # type: ignore[arg-type]
                     # Add VM directory contents
                     tar.add(vm_dir, arcname=vm_name)
 
@@ -54,7 +54,7 @@ class BackupManager:
                 "name": backup_name,
                 "path": str(backup_path),
                 "size_bytes": backup_size,
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat()
             }
 
         except Exception as e:
@@ -71,8 +71,8 @@ class BackupManager:
     async def restore_backup(
         self,
         vm_name: str,
-        backup_id: int = None,
-        backup_path: str = None,
+        backup_id: int | None = None,
+        backup_path: str | None = None,
     ) -> Optional[dict]:
         """Restore a VM from backup."""
         # Find backup
@@ -106,7 +106,7 @@ class BackupManager:
         # Extract backup
         try:
             with gzip.open(backup_file, "rb") as gz:
-                with tarfile.open(fileobj=gz, mode="r") as tar:
+                with tarfile.open(fileobj=gz, mode="r:") as tar:
                     # Extract to VM directory
                     tar.extractall(new_vm_dir)
 
@@ -167,7 +167,7 @@ class BackupManager:
 
         try:
             with gzip.open(export_file, f"wb{compression_level}") as gz:
-                with tarfile.open(fileobj=gz, mode="w") as tar:
+                with tarfile.open(fileobj=gz, mode="w:") as tar:  # type: ignore[arg-type]
                     tar.add(vm_dir, arcname=vm_name)
             return True
         except Exception as e:
@@ -186,7 +186,7 @@ class BackupManager:
 
         try:
             with gzip.open(import_file, "rb") as gz:
-                with tarfile.open(fileobj=gz, mode="r") as tar:
+                with tarfile.open(fileobj=gz, mode="r:") as tar:
                     tar.extractall(Path(config.vm_dir))
 
             # Rename extracted directory to vm_name

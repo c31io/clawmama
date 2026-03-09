@@ -98,7 +98,7 @@ class VMProvisioner:
 
         # Mount and configure
         if with_openclaw:
-            await self._install_openclaw(disk_path, vm_name)
+            await self._install_openclaw(str(disk_path), vm_name)
 
         return str(disk_path)
 

@@ -62,7 +62,7 @@ async def main():
 
     # Start bot
     logger.info("Starting bot...")
-    await application.run_polling()
+    application.run_polling()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 import aiosqlite
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class VMDatabase:
@@ -49,11 +49,11 @@ class VMDatabase:
         vcpus: int,
         memory_mib: int,
         disk_gb: int,
-        ip_address: str = None,
-        socket_path: str = None,
-    ) -> int:
+        ip_address: str | None = None,
+        socket_path: str | None = None,
+    ) -> int | None:
         """Create a new VM record."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """
@@ -91,7 +91,7 @@ class VMDatabase:
 
     async def update_vm_state(self, name: str, state: str):
         """Update VM state."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "UPDATE vms SET state = ?, updated_at = ? WHERE name = ?",
@@ -101,7 +101,7 @@ class VMDatabase:
 
     async def update_vm_ip(self, name: str, ip_address: str):
         """Update VM IP address."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "UPDATE vms SET ip_address = ?, updated_at = ? WHERE name = ?",
@@ -119,10 +119,10 @@ class VMDatabase:
         self,
         vm_name: str,
         path: str,
-        size_bytes: int = None
+        size_bytes: int | None = None
     ):
         """Add a backup record."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """

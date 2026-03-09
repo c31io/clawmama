@@ -1,7 +1,10 @@
 """Telegram bot handlers."""
+from typing import TYPE_CHECKING, Any
+
 from telegram import Update
 from telegram.ext import (
     Application,
+    CallbackContext,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -13,6 +16,16 @@ from clawmama.config import config
 from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
 
 
+# Context type for handlers - use Any to satisfy ConversationHandler generic type
+if TYPE_CHECKING:
+    BotContext = CallbackContext[Any, dict[str, Any], Any, Any]
+else:
+    BotContext = ContextTypes.DEFAULT_TYPE
+
+# Type alias for ConversationHandler to avoid generic issues
+ConversationHandlerAny = ConversationHandler[Any]
+
+
 # Conversation states
 (
     CREATE_NAME,
@@ -22,12 +35,12 @@ from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupMan
 ) = range(4)
 
 # Global database instance (initialized lazily)
-db = None
-backup_manager = None
-provisioner = None
+db: VMDatabase | None = None
+backup_manager: BackupManager | None = None
+provisioner: VMProvisioner | None = None
 
 
-def get_db():
+def get_db() -> VMDatabase:
     """Get or create database instance."""
     global db
     if db is None:
@@ -35,7 +48,7 @@ def get_db():
     return db
 
 
-def get_backup_manager():
+def get_backup_manager() -> BackupManager:
     """Get or create backup manager instance."""
     global backup_manager
     if backup_manager is None:
@@ -43,7 +56,7 @@ def get_backup_manager():
     return backup_manager
 
 
-def get_provisioner():
+def get_provisioner() -> VMProvisioner:
     """Get or create provisioner instance."""
     global provisioner
     if provisioner is None:
@@ -51,8 +64,10 @@ def get_provisioner():
     return provisioner
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: BotContext):
     """Handle /start command."""
+    if not update.message:
+        return
     welcome_text = """
 Welcome to ClawMama! 🐾
 
@@ -83,6 +98,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /list command - show all VMs."""
+    if not update.message:
+        return
     vms = await get_db().list_vms()
 
     if not vms:
@@ -109,6 +126,8 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /status <vm_name>")
         return
@@ -146,6 +165,8 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /run command - start a VM."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /run <vm_name>")
         return
@@ -168,6 +189,7 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Start the VM
         ip_address = await fc.start_vm()
+        assert ip_address is not None
 
         await get_db().update_vm_state(vm_name, "running")
         await get_db().update_vm_ip(vm_name, ip_address)
@@ -183,6 +205,8 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stop command - stop a VM."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /stop <vm_name>")
         return
@@ -213,6 +237,8 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /pause command - pause a VM."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /pause <vm_name>")
         return
@@ -241,6 +267,8 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /resume command - resume a VM."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /resume <vm_name>")
         return
@@ -269,6 +297,8 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /backup command - create VM backup."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /backup <vm_name>")
         return
@@ -300,6 +330,8 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /recover command - recover from backup."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /recover <vm_name> [backup_id]")
         return
@@ -344,6 +376,8 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /delete command - delete a VM."""
+    if not update.message:
+        return
     if not context.args:
         await update.message.reply_text("Usage: /delete <vm_name>")
         return
@@ -376,6 +410,8 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Create conversation handler for VM creation
 async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the VM creation conversation."""
+    if not update.message:
+        return
     await update.message.reply_text(
         "Creating a new VM...\n\n"
         "Please enter a name for your VM:"
@@ -385,6 +421,12 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get VM name."""
+    if not update.message:
+        return
+    if not update.message.text:
+        return
+    if not context.user_data:
+        return
     vm_name = update.message.text.strip()
 
     # Validate name
@@ -411,6 +453,12 @@ async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_vcpus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get vCPU count."""
+    if not update.message:
+        return
+    if not update.message.text:
+        return
+    if not context.user_data:
+        return
     try:
         vcpus = int(update.message.text.strip())
         if vcpus < 1 or vcpus > config.max_vcpus:
@@ -433,6 +481,12 @@ async def create_vcpus(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get memory size."""
+    if not update.message:
+        return
+    if not update.message.text:
+        return
+    if not context.user_data:
+        return
     try:
         memory = int(update.message.text.strip())
         if memory < 512 or memory > config.max_memory_mib:
@@ -455,6 +509,12 @@ async def create_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get disk size and create VM."""
+    if not update.message:
+        return
+    if not update.message.text:
+        return
+    if not context.user_data:
+        return
     try:
         disk = int(update.message.text.strip())
         if disk < 1 or disk > config.max_disk_gb:
@@ -483,6 +543,8 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel VM creation."""
+    if not update.message:
+        return
     await update.message.reply_text("VM creation cancelled.")
     return ConversationHandler.END
 
@@ -509,7 +571,7 @@ def setup_handlers(application: Application):
     application.add_handler(CommandHandler("delete", delete_command))
 
     # Create VM conversation
-    create_handler = ConversationHandler(
+    create_handler = ConversationHandlerAny(
         entry_points=[CommandHandler("create", create_start)],
         states={
             CREATE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_name)],
