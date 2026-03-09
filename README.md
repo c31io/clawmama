@@ -25,22 +25,9 @@ git clone https://github.com/yourusername/clawmama.git
 cd clawmama
 uv sync
 
-# Configure
-# Edit config.yaml and set your Telegram bot token
-```
-
-## Configuration
-
-Edit `config.yaml`:
-
-```yaml
-bot:
-  token: "YOUR_TELEGRAM_BOT_TOKEN"
-
-firecracker:
-  binary_path: "/usr/bin/firecracker"
-  kernel_path: "/var/lib/clawmama/vmlinux"
-  vm_dir: "/var/lib/clawmama/vms"
+# Configure - copy template and edit
+cp template.config.yaml ~/.config/clawmama/config.yaml
+# Or use ./config.yaml for local development
 ```
 
 ## Usage
@@ -52,7 +39,7 @@ uv run python main.py
 ### Bot Commands
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `/start` | Welcome message |
 | `/help` | Show available commands |
 | `/list` | List all VMs |

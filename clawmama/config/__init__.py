@@ -1,9 +1,15 @@
 """Configuration module for ClawMama."""
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def _expand_path(path: str) -> Path:
+    """Expand ~ and environment variables in path."""
+    return Path(os.path.expanduser(os.path.expandvars(path)))
 
 
 class Config:
@@ -54,29 +60,29 @@ class Config:
     def firecracker_binary(self) -> str:
         """Get firecracker binary path."""
         return self._config.get("firecracker", {}).get(
-            "binary_path", "/usr/bin/firecracker"
+            "binary_path", "firecracker"
         )
 
     @property
     def kernel_path(self) -> str:
         """Get kernel path."""
-        return self._config.get("firecracker", {}).get(
-            "kernel_path", "/var/lib/clawmama/vmlinux"
-        )
+        return str(_expand_path(self._config.get("firecracker", {}).get(
+            "kernel_path", "~/.local/share/clawmama/vmlinux"
+        )))
 
     @property
     def image_path(self) -> str:
         """Get base image path."""
-        return self._config.get("firecracker", {}).get(
-            "image_path", "/var/lib/clawmama/ubuntu-base.img"
-        )
+        return str(_expand_path(self._config.get("firecracker", {}).get(
+            "image_path", "~/.local/share/clawmama/ubuntu-base.img"
+        )))
 
     @property
     def vm_dir(self) -> str:
         """Get VM working directory."""
-        return self._config.get("firecracker", {}).get(
-            "vm_dir", "/var/lib/clawmama/vms"
-        )
+        return str(_expand_path(self._config.get("firecracker", {}).get(
+            "vm_dir", "~/.local/share/clawmama/vms"
+        )))
 
     @property
     def default_vcpus(self) -> int:
@@ -158,9 +164,9 @@ class Config:
     @property
     def backup_dir(self) -> str:
         """Get backup directory."""
-        return self._config.get("backup", {}).get(
-            "dir", "/var/lib/clawmama/backups"
-        )
+        return str(_expand_path(self._config.get("backup", {}).get(
+            "dir", "~/.local/share/clawmama/backups"
+        )))
 
     @property
     def backup_compression(self) -> int:

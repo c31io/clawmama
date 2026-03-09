@@ -1,0 +1,49 @@
+# ClawMama Configuration
+# Copy to config.yaml or ~/.config/clawmama/config.yaml
+
+# Telegram Bot
+bot:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+
+# Firecracker settings
+firecracker:
+  # Path to firecracker binary (ensure it's in PATH or use full path)
+  binary_path: "firecracker"
+  # Path to vmlinux kernel (downloaded by provisioner)
+  kernel_path: "~/.local/share/clawmama/vmlinux"
+  # Path to Ubuntu cloud image
+  image_path: "~/.local/share/clawmama/ubuntu-base.img"
+  # Directory for VM working files
+  vm_dir: "~/.local/share/clawmama/vms"
+  # Default VM resources
+  default:
+    vcpus: 2
+    memory_mib: 2048
+    disk_size_gb: 10
+
+# Network settings
+network:
+  # Host side of the TAP interface
+  host_ip: "172.30.0.1"
+  # VM IP range
+  vm_ip_start: "172.30.0.2"
+  # Network CIDR
+  cidr: "172.30.0.0/30"
+
+# Security settings
+security:
+  # Enable network isolation
+  isolate_network: true
+  # Block all inbound connections
+  block_inbound: true
+  # Maximum resources per VM
+  max_vcpus: 4
+  max_memory_mib: 4096
+  max_disk_gb: 20
+
+# Backup settings
+backup:
+  # Directory to store backups
+  dir: "~/.local/share/clawmama/backups"
+  # Compression level (1-9)
+  compression: 6
