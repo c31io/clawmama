@@ -49,7 +49,7 @@ uv run python main.py
 | `/start` | Welcome message |
 | `/help` | Show available commands |
 | `/list` | List all VMs |
-| `/create` | Create a new VM (interactive) |
+| `/create <name> [--vcpus N] [--memory MB] [--disk GB]` | Create a new VM |
 | `/status <name>` | Check VM status |
 | `/run <name>` | Start a VM |
 | `/stop <name>` | Stop a VM |

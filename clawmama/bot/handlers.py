@@ -99,7 +99,7 @@ I manage Firecracker microVMs with OpenClaw for you.
 Available commands:
 /help - Show this help message
 /list - List all VMs
-/create - Create a new VM
+/create <name> [--vcpus N] [--memory MB] [--disk GB] - Create a new VM
 /status <name> - Check VM status
 /run <name> - Start a VM
 /stop <name> - Stop a VM

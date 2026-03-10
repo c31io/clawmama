@@ -37,7 +37,7 @@ class Config:
 
         config_paths = [
             xdg_config_path,
-            Path(__file__).parent.parent / "config.yaml",
+            Path(__file__).parent.parent.parent / "config.yaml",
         ]
 
         for config_path in config_paths:

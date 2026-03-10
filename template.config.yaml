@@ -10,7 +10,7 @@ bot:
 # Firecracker settings
 firecracker:
   # Path to firecracker binary (ensure it's in PATH or use full path)
-  binary_path: "firecracker"
+  binary_path: "~/.local/bin/firecracker"
   # Path to vmlinux kernel (downloaded by provisioner)
   kernel_path: "~/.local/share/clawmama/vmlinux"
   # Path to Ubuntu cloud image
