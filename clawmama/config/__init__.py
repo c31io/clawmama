@@ -1,10 +1,13 @@
 """Configuration module for ClawMama."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def _expand_path(path: str) -> Path:
@@ -44,8 +47,10 @@ class Config:
             if config_path.exists():
                 with open(config_path, "r") as f:
                     self._config = yaml.safe_load(f) or {}
+                logger.info("Using config file: %s", config_path)
                 return
 
+        logger.warning("No config file found, using defaults")
         self._config = {}
 
     @property
@@ -58,7 +63,7 @@ class Config:
     @property
     def bot_user_id(self) -> int | None:
         """Get authorized Telegram user ID."""
-        user_id = self._config.get("bot", {}).get("user_id")
+        user_id = os.environ.get("TELEGRAM_BOT_USER_ID") or self._config.get("bot", {}).get("user_id")
         if user_id is None:
             return None
         try:
