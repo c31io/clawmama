@@ -66,15 +66,10 @@ async def main():
     # Setup handlers
     setup_handlers(application)
 
-    # Start bot
+    # Start bot (run_polling is a synchronous method in PTB v21+)
     logger.info("Starting bot...")
-    await application.run_polling()
+    application.run_polling()
 
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
+    asyncio.run(main())
