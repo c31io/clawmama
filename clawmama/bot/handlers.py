@@ -9,9 +9,6 @@ from telegram.ext import (
     CallbackContext,
     CommandHandler,
     ContextTypes,
-    MessageHandler,
-    filters,
-    ConversationHandler,
 )
 
 from clawmama.config import config
@@ -21,8 +18,6 @@ logger = logging.getLogger("clawmama.handlers")
 
 def _check_authorized(update: Update) -> bool:
     """Check if user is authorized to use the bot."""
-    logger.debug("_check_authorized: update.message=%s, update.message.from_user=%s",
-                  update.message, update.message.from_user if update.message else None)
     if not update.message:
         return False
     if not update.message.from_user:
@@ -35,8 +30,7 @@ def _check_authorized(update: Update) -> bool:
     return update.message.from_user.id == allowed_user_id
 
 
-# Context type for handlers - use Any to satisfy ConversationHandler generic type
-# Defined early to avoid forward reference issues with _auth_guard
+# Context type for handlers
 if TYPE_CHECKING:
     BotContext = CallbackContext[Any, dict[str, Any], Any, Any]
 else:
@@ -62,18 +56,6 @@ def _auth_guard(
 
     return wrapper
 
-
-# Type alias for ConversationHandler to avoid generic issues
-ConversationHandlerAny = ConversationHandler[Any]
-
-
-# Conversation states
-(
-    CREATE_NAME,
-    CREATE_VCPUS,
-    CREATE_MEMORY,
-    CREATE_DISK,
-) = range(4)
 
 # Global database instance (initialized lazily)
 db: VMDatabase | None = None
@@ -468,138 +450,79 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Delete failed: {e}")
 
 
-# Create conversation handler for VM creation
-async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start the VM creation conversation."""
+# Create VM command
+async def create_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Create a new VM with all parameters in one command."""
     if not update.message:
         return
-    logger.info("Starting VM creation conversation")
-    await update.message.reply_text(
-        "Creating a new VM...\n\nPlease enter a name for your VM:"
-    )
-    return CREATE_NAME
 
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "Usage: /create <name> [--vcpus N] [--memory MB] [--disk GB]\n"
+            f"Defaults: --vcpus {config.default_vcpus} --memory {config.default_memory_mib} --disk {config.default_disk_gb}"
+        )
+        return
 
-async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get VM name."""
-    logger.debug("create_name: update.message=%s, update.message.text=%s, context.user_data=%s",
-                  update.message, update.message.text if update.message else None, context.user_data)
-    if not update.message:
-        logger.debug("create_name: early return - no message")
-        return
-    if not update.message.text:
-        logger.debug("create_name: early return - no text")
-        return
-    if not context.user_data:
-        logger.debug("create_name: early return - no user_data")
-        return
-    vm_name = update.message.text.strip()
-    logger.info(f"VM creation: received name '{vm_name}'")
+    vm_name = args[0]
 
-    # Validate name
+    # Parse optional arguments
+    vcpus = config.default_vcpus
+    memory = config.default_memory_mib
+    disk = config.default_disk_gb
+
+    i = 1
+    while i < len(args):
+        if args[i] == "--vcpus" and i + 1 < len(args):
+            try:
+                vcpus = int(args[i + 1])
+            except ValueError:
+                await update.message.reply_text("Invalid vCPU count.")
+                return
+            i += 2
+        elif args[i] == "--memory" and i + 1 < len(args):
+            try:
+                memory = int(args[i + 1])
+            except ValueError:
+                await update.message.reply_text("Invalid memory size.")
+                return
+            i += 2
+        elif args[i] == "--disk" and i + 1 < len(args):
+            try:
+                disk = int(args[i + 1])
+            except ValueError:
+                await update.message.reply_text("Invalid disk size.")
+                return
+            i += 2
+        else:
+            i += 1
+
+    # Validate
     if not vm_name.replace("-", "").replace("_", "").isalnum():
         await update.message.reply_text(
             "Invalid name. Use only letters, numbers, hyphens, and underscores."
         )
-        return CREATE_NAME
+        return
+
+    if vcpus < 1 or vcpus > config.max_vcpus:
+        await update.message.reply_text(f"vCPUs must be between 1 and {config.max_vcpus}.")
+        return
+
+    if memory < 512 or memory > config.max_memory_mib:
+        await update.message.reply_text(f"Memory must be between 512 and {config.max_memory_mib} MB.")
+        return
+
+    if disk < 1 or disk > config.max_disk_gb:
+        await update.message.reply_text(f"Disk must be between 1 and {config.max_disk_gb} GB.")
+        return
 
     # Check if VM already exists
     existing = await get_db().get_vm(vm_name)
     if existing:
         await update.message.reply_text(f"VM '{vm_name}' already exists.")
-        return ConversationHandler.END
-
-    context.user_data["vm_name"] = vm_name
-
-    await update.message.reply_text(
-        f"Name: {vm_name}\n\n"
-        f"How many vCPUs? (1-{config.max_vcpus}, default: {config.default_vcpus}):"
-    )
-    return CREATE_VCPUS
-
-
-async def create_vcpus(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get vCPU count."""
-    if not update.message:
         return
-    if not update.message.text:
-        return
-    if not context.user_data:
-        return
-    try:
-        vcpus = int(update.message.text.strip())
-        if vcpus < 1 or vcpus > config.max_vcpus:
-            await update.message.reply_text(
-                f"Invalid vCPU count. Must be between 1 and {config.max_vcpus}."
-            )
-            return CREATE_VCPUS
-    except ValueError:
-        vcpus = config.default_vcpus
 
-    logger.info(f"VM creation: received vCPUs: {vcpus}")
-    context.user_data["vcpus"] = vcpus
-
-    await update.message.reply_text(
-        f"vCPUs: {vcpus}\n\n"
-        f"How much memory in MB? (512-{config.max_memory_mib}, "
-        f"default: {config.default_memory_mib}):"
-    )
-    return CREATE_MEMORY
-
-
-async def create_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get memory size."""
-    if not update.message:
-        return
-    if not update.message.text:
-        return
-    if not context.user_data:
-        return
-    try:
-        memory = int(update.message.text.strip())
-        if memory < 512 or memory > config.max_memory_mib:
-            await update.message.reply_text(
-                f"Invalid memory. Must be between 512 and {config.max_memory_mib} MB."
-            )
-            return CREATE_MEMORY
-    except ValueError:
-        memory = config.default_memory_mib
-
-    logger.info(f"VM creation: received memory: {memory} MB")
-    context.user_data["memory_mib"] = memory
-
-    await update.message.reply_text(
-        f"Memory: {memory} MB\n\n"
-        f"How much disk in GB? (1-{config.max_disk_gb}, "
-        f"default: {config.default_disk_gb}):"
-    )
-    return CREATE_DISK
-
-
-async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Get disk size and create VM."""
-    if not update.message:
-        return
-    if not update.message.text:
-        return
-    if not context.user_data:
-        return
-    try:
-        disk = int(update.message.text.strip())
-        if disk < 1 or disk > config.max_disk_gb:
-            await update.message.reply_text(
-                f"Invalid disk size. Must be between 1 and {config.max_disk_gb} GB."
-            )
-            return CREATE_DISK
-    except ValueError:
-        disk = config.default_disk_gb
-
-    logger.info(f"VM creation: received disk: {disk} GB")
-    vm_name = context.user_data["vm_name"]
-    vcpus = context.user_data["vcpus"]
-    memory = context.user_data["memory_mib"]
-
-    # Create VM record
+    # Create VM
     await get_db().create_vm(vm_name, vcpus, memory, disk)
 
     logger.info(f"VM {vm_name} created: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk")
@@ -608,17 +531,6 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Resources: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk\n\n"
         f"Start it with: /run {vm_name}"
     )
-
-    return ConversationHandler.END
-
-
-async def create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancel VM creation."""
-    if not update.message:
-        return
-    logger.info("VM creation cancelled")
-    await update.message.reply_text("VM creation cancelled.")
-    return ConversationHandler.END
 
 
 def setup_handlers(application: Application):
@@ -643,31 +555,5 @@ def setup_handlers(application: Application):
     for cmd, handler in protected_commands:
         application.add_handler(CommandHandler(cmd, _auth_guard(handler)))
 
-    # Create VM conversation (protected)
-    create_handler = ConversationHandlerAny(
-        entry_points=[CommandHandler("create", _auth_guard(create_start))],
-        states={
-            CREATE_NAME: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_name)
-                )
-            ],
-            CREATE_VCPUS: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_vcpus)
-                )
-            ],
-            CREATE_MEMORY: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_memory)
-                )
-            ],
-            CREATE_DISK: [
-                MessageHandler(
-                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_disk)
-                )
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", _auth_guard(create_cancel))],
-    )
-    application.add_handler(create_handler)
+    # Create VM command (protected)
+    application.add_handler(CommandHandler("create", _auth_guard(create_command)))
