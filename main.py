@@ -72,6 +72,12 @@ def main():
 
     application.add_handler(MessageHandler(filters.ALL, catch_all))
 
+    # Add polling callbacks for debugging
+    async def post_init(app):
+        logger.info("Bot initialized, polling started")
+
+    application.post_init = post_init
+
     # Start bot (run_polling manages its own event loop)
     logger.info("Starting bot...")
     application.run_polling()
