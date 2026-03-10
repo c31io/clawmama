@@ -19,13 +19,9 @@ class VMProvisioner:
         "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
     )
 
-    # Firecracker release API and kernel repo
+    # Firecracker release API
     FIRECRACKER_RELEASE_API = (
         "https://api.github.com/repos/firecracker-microvm/firecracker/releases/latest"
-    )
-    # vmlinux is now distributed separately in firecracker-kernel-binaries
-    FIRECRACKER_KERNEL_API = (
-        "https://api.github.com/repos/firecracker-microvm/firecracker-kernel-binaries/releases/latest"
     )
 
     def __init__(self):
@@ -50,32 +46,45 @@ class VMProvisioner:
 
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
-        # Get latest kernel release info (vmlinux is now separate from firecracker releases)
-        response = requests.get(self.FIRECRACKER_KERNEL_API)
+        # Get latest release info
+        response = requests.get(self.FIRECRACKER_RELEASE_API)
         response.raise_for_status()
         release = response.json()
 
-        # Find vmlinux asset
-        vmlinux_url = None
+        # Find x86_64 release asset
+        tarball_url = None
         for asset in release.get("assets", []):
-            if "vmlinux" in asset["name"] and asset["name"].endswith(".gz"):
-                vmlinux_url = asset["browser_download_url"]
+            if asset["name"].endswith("-x86_64.tgz"):
+                tarball_url = asset["browser_download_url"]
                 break
 
-        if not vmlinux_url:
-            raise RuntimeError("Could not find vmlinux in kernel binaries release")
+        if not tarball_url:
+            raise RuntimeError("Could not find Firecracker release tarball")
 
-        # Download vmlinux (typically gzipped)
-        logger.info(f"Downloading vmlinux from {vmlinux_url}...")
-        import gzip
+        # Download and extract
+        import tarfile
+        import io
 
-        response = requests.get(vmlinux_url, stream=True)
+        logger.info(f"Downloading Firecracker release from {tarball_url}...")
+        response = requests.get(tarball_url, stream=True)
         response.raise_for_status()
 
-        # Decompress and save
-        with gzip.GzipFile(fileobj=response.raw) as gz:
-            with open(kernel_path, "wb") as f:
-                f.write(gz.read())
+        # Extract vmlinux from tarball
+        with tarfile.open(fileobj=io.BytesIO(response.content)) as tar:
+            vmlinux_found = False
+            for member in tar.getmembers():
+                if member.name.endswith("/vmlinux"):
+                    vmlinux_found = True
+                    logger.info(f"Extracting vmlinux from {member.name}...")
+                    kernel_file = tar.extractfile(member)
+                    if kernel_file:
+                        with open(kernel_path, "wb") as f:
+                            f.write(kernel_file.read())
+                    break
+            if not vmlinux_found:
+                raise RuntimeError(
+                    f"vmlinux not found in tarball. Contents: {[m.name for m in tar.getmembers()[:10]]}"
+                )
 
         os.chmod(kernel_path, 0o755)
 
