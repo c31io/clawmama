@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from telegram.ext import Application, MessageHandler, filters
+from telegram.ext import DictPersistence
 
 from clawmama.config import config
 from clawmama.logging_ import setup_logging
@@ -60,8 +61,13 @@ def main():
     except Exception as e:
         logger.error(f"Environment setup failed: {e}", exc_info=True)
 
-    # Create application
-    application = Application.builder().token(token).build()
+    # Create application with persistence for ConversationHandler
+    application = (
+        Application.builder()
+        .token(token)
+        .persistence(DictPersistence())
+        .build()
+    )
 
     # Setup handlers
     setup_handlers(application)
