@@ -485,6 +485,7 @@ async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data:
         return
     vm_name = update.message.text.strip()
+    logger.info(f"VM creation: received name '{vm_name}'")
 
     # Validate name
     if not vm_name.replace("-", "").replace("_", "").isalnum():
@@ -526,6 +527,7 @@ async def create_vcpus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         vcpus = config.default_vcpus
 
+    logger.info(f"VM creation: received vCPUs: {vcpus}")
     context.user_data["vcpus"] = vcpus
 
     await update.message.reply_text(
@@ -554,6 +556,7 @@ async def create_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         memory = config.default_memory_mib
 
+    logger.info(f"VM creation: received memory: {memory} MB")
     context.user_data["memory_mib"] = memory
 
     await update.message.reply_text(
@@ -582,6 +585,7 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         disk = config.default_disk_gb
 
+    logger.info(f"VM creation: received disk: {disk} GB")
     vm_name = context.user_data["vm_name"]
     vcpus = context.user_data["vcpus"]
     memory = context.user_data["memory_mib"]
