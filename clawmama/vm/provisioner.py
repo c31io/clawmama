@@ -3,7 +3,7 @@
 import logging
 import os
 import subprocess
-import urllib.request
+import requests
 from pathlib import Path
 
 from clawmama.config import config
@@ -42,8 +42,11 @@ class VMProvisioner:
         self._ensure_dirs()
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
-        # Download with progress
-        urllib.request.urlretrieve(self.FIRECRACKER_KERNEL_URL, kernel_path)
+        response = requests.get(self.FIRECRACKER_KERNEL_URL, stream=True)
+        response.raise_for_status()
+        with open(kernel_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
         os.chmod(kernel_path, 0o755)
 
         return str(kernel_path)
@@ -57,84 +60,16 @@ class VMProvisioner:
         self._ensure_dirs()
         logger.info(f"Downloading Ubuntu base image to {image_path}...")
 
-        # Download Ubuntu cloud image
-        urllib.request.urlretrieve(self.UBUNTU_IMAGE_URL, image_path)
+        response = requests.get(self.UBUNTU_IMAGE_URL, stream=True)
+        response.raise_for_status()
+        with open(image_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
 
         return str(image_path)
 
-    async def prepare_vm_disk(
-        self,
-        vm_name: str,
-        disk_gb: int,
-        with_openclaw: bool = True,
-    ) -> str:
-        """Prepare VM disk with Ubuntu and optionally OpenClaw."""
-        vm_dir = self.vm_dir / vm_name
-        vm_dir.mkdir(parents=True, exist_ok=True)
-
-        # Copy base image to VM directory
-        disk_path = vm_dir / "root.img"
-
-        if not disk_path.exists():
-            base_image = await self.download_base_image()
-            # Copy and resize
-            subprocess.run(["cp", base_image, disk_path], check=True)
-            # Resize disk
-            subprocess.run(
-                ["truncate", "-s", f"{disk_gb}G", str(disk_path)], check=True
-            )
-            subprocess.run(["resize2fs", str(disk_path)], check=True)
-
-        # Mount and configure
-        if with_openclaw:
-            await self._install_openclaw(str(disk_path), vm_name)
-
-        return str(disk_path)
-
-    async def _install_openclaw(
-        self,
-        disk_path: str,
-        vm_name: str,
-    ):
-        """Install OpenClaw in the VM disk."""
-        # This would need to be done via guestfish or similar
-        # For now, we'll set up cloud-init to install it on first boot
-        logger.info(f"Setting up OpenClaw installation for {vm_name}")
-
-        # Create cloud-init user-data
-        cloud_init_dir = Path(disk_path).parent / "cloud-init"
-        cloud_init_dir.mkdir(exist_ok=True)
-
-        user_data = """#cloud-config
-autoinstall:
-  version: 1
-  locale: en_US
-  keyboard:
-    layout: us
-  identity:
-    hostname: {hostname}
-    password: "$6$rounds=4096$xyz$hashedpassword"  # Change this!
-    username: ubuntu
-  ssh:
-    install-server: true
-    allow-pw: true
-  storage:
-    layout:
-      name: lvm
-  packages:
-    - openssh-server
-    - curl
-    - wget
-    - git
-runcmd:
-  - curl -sL https://claude.com/Claude.sh | sh
-  - systemctl enable ssh
-""".format(hostname=vm_name)
-
-        (cloud_init_dir / "user-data").write_text(user_data)
-
     async def setup_networking(self) -> bool:
-        """Setup host networking for VMs."""
+        """Setup host networking for VMs (requires root)."""
         # Create bridge for VMs
         try:
             subprocess.run(
@@ -188,8 +123,8 @@ runcmd:
 
             return True
 
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to setup networking: {e}")
+        except Exception as e:
+            logger.warning(f"Networking setup failed (may require root): {e}")
             return False
 
     async def prepare(self):
