@@ -163,36 +163,6 @@ class SecurityManager:
     """Manages global security for all VMs."""
 
     @staticmethod
-    def setup_host_protection() -> bool:
-        """Setup host-level security protections."""
-        try:
-            # Disable IP forwarding if not needed
-            # Already done in provisioner
-
-            # Block common exploit techniques
-            # Disable packet source routing
-            with open("/proc/sys/net/ipv4/conf/all/accept_source_route", "w") as f:
-                f.write("0")
-            with open("/proc/sys/net/ipv4/conf/default/accept_source_route", "w") as f:
-                f.write("0")
-
-            # Block ICMP redirect
-            with open("/proc/sys/net/ipv4/conf/all/accept_redirects", "w") as f:
-                f.write("0")
-            with open("/proc/sys/net/ipv4/conf/default/accept_redirects", "w") as f:
-                f.write("0")
-
-            # Disable source packet routing
-            with open("/proc/sys/net/ipv4/conf/all/send_redirects", "w") as f:
-                f.write("0")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to setup host protection: {e}")
-            return False
-
-    @staticmethod
     def get_firewall_status() -> dict:
         """Get firewall status for VMs."""
         status = {

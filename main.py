@@ -19,10 +19,6 @@ async def setup_environment():
     Path(config.vm_dir).mkdir(parents=True, exist_ok=True)
     Path(config.backup_dir).mkdir(parents=True, exist_ok=True)
 
-    # Setup security
-    security = SecurityManager()
-    security.setup_host_protection()
-
     # Prepare VM provisioning
     provisioner = VMProvisioner()
     await provisioner.prepare()
