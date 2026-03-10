@@ -2,6 +2,8 @@
 """ClawMama - Telegram bot for Firecracker microVM management."""
 
 import asyncio
+import logging
+import os
 import sys
 from pathlib import Path
 
@@ -11,6 +13,17 @@ from clawmama.config import config
 from clawmama.logging_ import setup_logging
 from clawmama.bot.handlers import setup_handlers
 from clawmama.vm import VMDatabase, SecurityManager, VMProvisioner
+
+
+# Fix SOCKS proxy scheme for httpx (socks:// -> socks5://)
+for var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
+    proxy = os.environ.get(var, "")
+    if proxy.startswith("socks://"):
+        logger = logging.getLogger("clawmama")
+        logger.warning(
+            f"Converting {var} from socks:// to socks5:// (httpx supports SOCKS5 only)"
+        )
+        os.environ[var] = proxy.replace("socks://", "socks5://", 1)
 
 
 async def setup_environment():

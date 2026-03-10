@@ -11,16 +11,6 @@ from clawmama.config import config
 logger = logging.getLogger("clawmama.provisioner")
 
 
-# Fix SOCKS proxy scheme for requests (socks:// -> socks5://)
-for var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
-    proxy = os.environ.get(var, "")
-    if proxy.startswith("socks://"):
-        logger.warning(
-            f"Converting {var} from socks:// to socks5:// (requests supports SOCKS5 only)"
-        )
-        os.environ[var] = proxy.replace("socks://", "socks5://", 1)
-
-
 class VMProvisioner:
     """Provisions Ubuntu VMs with OpenClaw."""
 
