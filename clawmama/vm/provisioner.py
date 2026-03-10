@@ -24,6 +24,9 @@ class VMProvisioner:
         "https://api.github.com/repos/firecracker-microvm/firecracker/releases/latest"
     )
 
+    # vmlinux from S3 (Firecracker official examples)
+    VMLINUX_URL = "https://s3.amazonaws.com/spec.ccfc.min/img/hello/kernel/hello-vmlinux.bin"
+
     def __init__(self):
         self.vm_dir = Path(config.vm_dir)
         self.image_dir = Path(config.data_dir)
@@ -46,45 +49,12 @@ class VMProvisioner:
 
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
-        # Get latest release info
-        response = requests.get(self.FIRECRACKER_RELEASE_API)
+        # Download vmlinux from S3
+        response = requests.get(self.VMLINUX_URL, stream=True)
         response.raise_for_status()
-        release = response.json()
-
-        # Find x86_64 release asset
-        tarball_url = None
-        for asset in release.get("assets", []):
-            if asset["name"].endswith("-x86_64.tgz"):
-                tarball_url = asset["browser_download_url"]
-                break
-
-        if not tarball_url:
-            raise RuntimeError("Could not find Firecracker release tarball")
-
-        # Download and extract
-        import tarfile
-        import io
-
-        logger.info(f"Downloading Firecracker release from {tarball_url}...")
-        response = requests.get(tarball_url, stream=True)
-        response.raise_for_status()
-
-        # Extract vmlinux from tarball
-        with tarfile.open(fileobj=io.BytesIO(response.content)) as tar:
-            vmlinux_found = False
-            for member in tar.getmembers():
-                if member.name.endswith("/vmlinux"):
-                    vmlinux_found = True
-                    logger.info(f"Extracting vmlinux from {member.name}...")
-                    kernel_file = tar.extractfile(member)
-                    if kernel_file:
-                        with open(kernel_path, "wb") as f:
-                            f.write(kernel_file.read())
-                    break
-            if not vmlinux_found:
-                raise RuntimeError(
-                    f"vmlinux not found in tarball. Contents: {[m.name for m in tar.getmembers()[:10]]}"
-                )
+        with open(kernel_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
 
         os.chmod(kernel_path, 0o755)
 
