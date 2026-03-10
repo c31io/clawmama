@@ -26,7 +26,7 @@ class VMProvisioner:
 
     def __init__(self):
         self.vm_dir = Path(config.vm_dir)
-        self.image_dir = Path("/var/lib/clawmama")
+        self.image_dir = Path(config.data_dir)
 
     def _ensure_dirs(self):
         """Ensure required directories exist."""

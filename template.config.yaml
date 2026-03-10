@@ -17,6 +17,8 @@ firecracker:
   image_path: "~/.local/share/clawmama/ubuntu-base.img"
   # Directory for VM working files
   vm_dir: "~/.local/share/clawmama/vms"
+  # Data directory for database and downloaded images
+  data_dir: "~/.local/share/clawmama"
   # Default VM resources
   default:
     vcpus: 2

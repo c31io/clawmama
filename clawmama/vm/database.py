@@ -5,14 +5,16 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime, timezone
 
+from clawmama.config import config
+
 
 class VMDatabase:
     """SQLite database for managing VM state."""
 
-    def __init__(self, db_path: str = "/var/lib/clawmama/vms.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or f"{config.data_dir}/vms.db"
         # Ensure directory exists
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 
     async def init_db(self):
         """Initialize database tables."""

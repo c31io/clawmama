@@ -105,6 +105,17 @@ class Config:
         )
 
     @property
+    def data_dir(self) -> str:
+        """Get data directory for database and images."""
+        return str(
+            _expand_path(
+                self._config.get("firecracker", {}).get(
+                    "data_dir", "~/.local/share/clawmama"
+                )
+            )
+        )
+
+    @property
     def default_vcpus(self) -> int:
         """Get default vCPU count."""
         return self._config.get("firecracker", {}).get("default", {}).get("vcpus", 2)
