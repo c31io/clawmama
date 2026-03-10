@@ -4,8 +4,6 @@ import logging
 from typing import TYPE_CHECKING, Any, Callable
 
 from telegram import Update
-
-logger = logging.getLogger("clawmama.handlers")
 from telegram.ext import (
     Application,
     CallbackContext,
@@ -19,9 +17,12 @@ from telegram.ext import (
 from clawmama.config import config
 from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
 
+logger = logging.getLogger("clawmama.handlers")
 
 def _check_authorized(update: Update) -> bool:
     """Check if user is authorized to use the bot."""
+    logger.debug("_check_authorized: update.message=%s, update.message.from_user=%s",
+                  update.message, update.message.from_user if update.message else None)
     if not update.message:
         return False
     if not update.message.from_user:
@@ -46,9 +47,12 @@ def _auth_guard(
     handler: Callable[[Update, BotContext], Any],
 ) -> Callable[[Update, BotContext], Any]:
     """Decorator to wrap handlers with authorization check."""
+    handler_name = getattr(handler, "__name__", str(handler))
 
     async def wrapper(update: Update, context: BotContext):
-        if not _check_authorized(update):
+        authorized = _check_authorized(update)
+        logger.debug("auth_guard: handler=%s, authorized=%s", handler_name, authorized)
+        if not authorized:
             if update.message:
                 await update.message.reply_text(
                     "⛔ Unauthorized: you are not allowed to use this bot."
@@ -478,11 +482,16 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def create_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get VM name."""
+    logger.debug("create_name: update.message=%s, update.message.text=%s, context.user_data=%s",
+                  update.message, update.message.text if update.message else None, context.user_data)
     if not update.message:
+        logger.debug("create_name: early return - no message")
         return
     if not update.message.text:
+        logger.debug("create_name: early return - no text")
         return
     if not context.user_data:
+        logger.debug("create_name: early return - no user_data")
         return
     vm_name = update.message.text.strip()
     logger.info(f"VM creation: received name '{vm_name}'")
