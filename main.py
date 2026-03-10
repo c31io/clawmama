@@ -41,7 +41,7 @@ async def setup_environment():
     await db.init_db()
 
 
-async def main():
+def main():
     """Main entry point."""
     # Setup logging
     logger = setup_logging()
@@ -56,7 +56,7 @@ async def main():
 
     # Setup environment
     try:
-        await setup_environment()
+        asyncio.run(setup_environment())
     except Exception as e:
         logger.error(f"Environment setup failed: {e}", exc_info=True)
 
@@ -66,10 +66,10 @@ async def main():
     # Setup handlers
     setup_handlers(application)
 
-    # Start bot (close_loop=False prevents PTB from closing our event loop)
+    # Start bot (run_polling manages its own event loop)
     logger.info("Starting bot...")
-    application.run_polling(close_loop=False)
+    application.run_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
