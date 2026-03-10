@@ -12,7 +12,7 @@ from telegram.ext import Application
 from clawmama.config import config
 from clawmama.logging_ import setup_logging
 from clawmama.bot.handlers import setup_handlers
-from clawmama.vm import VMDatabase, SecurityManager, VMProvisioner
+from clawmama.vm import VMDatabase, VMProvisioner
 
 
 # Fix SOCKS proxy scheme for httpx (socks:// -> socks5://)

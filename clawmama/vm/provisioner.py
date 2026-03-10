@@ -40,6 +40,9 @@ class VMProvisioner:
             return str(kernel_path)
 
         self._ensure_dirs()
+        # Ensure kernel parent dir exists
+        kernel_path.parent.mkdir(parents=True, exist_ok=True)
+
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
         # Get latest release info
@@ -87,6 +90,9 @@ class VMProvisioner:
             return str(image_path)
 
         self._ensure_dirs()
+        # Ensure image parent dir exists
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+
         logger.info(f"Downloading Ubuntu base image to {image_path}...")
 
         response = requests.get(self.UBUNTU_IMAGE_URL, stream=True)
