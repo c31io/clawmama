@@ -66,9 +66,9 @@ async def main():
     # Setup handlers
     setup_handlers(application)
 
-    # Start bot (run_polling is a synchronous method in PTB v21+)
+    # Start bot (close_loop=False prevents PTB from closing our event loop)
     logger.info("Starting bot...")
-    application.run_polling()
+    application.run_polling(close_loop=False)
 
 
 if __name__ == "__main__":
