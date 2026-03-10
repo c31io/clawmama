@@ -1,8 +1,11 @@
 """Telegram bot handlers."""
 
+import logging
 from typing import TYPE_CHECKING, Any, Callable
 
 from telegram import Update
+
+logger = logging.getLogger("clawmama.handlers")
 from telegram.ext import (
     Application,
     CallbackContext,
@@ -134,6 +137,7 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /list command - show all VMs."""
     if not update.message:
         return
+    logger.info("Listing all VMs")
     vms = await get_db().list_vms()
 
     if not vms:
@@ -167,6 +171,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Getting status for VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -206,6 +211,7 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Starting VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -228,12 +234,14 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await get_db().update_vm_state(vm_name, "running")
         await get_db().update_vm_ip(vm_name, ip_address)
 
+        logger.info(f"VM {vm_name} started with IP {ip_address}")
         await update.message.reply_text(
             f"✅ VM '{vm_name}' started!\n"
             f"IP: {ip_address}\n"
             "OpenClaw should be accessible via the configured port."
         )
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to start VM")
         await update.message.reply_text(f"❌ Failed to start VM: {e}")
 
 
@@ -246,6 +254,7 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Stopping VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -264,8 +273,10 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await get_db().update_vm_state(vm_name, "stopped")
 
+        logger.info(f"VM {vm_name} stopped")
         await update.message.reply_text(f"✅ VM '{vm_name}' stopped!")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to stop VM")
         await update.message.reply_text(f"❌ Failed to stop VM: {e}")
 
 
@@ -278,6 +289,7 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Pausing VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -294,8 +306,10 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await get_db().update_vm_state(vm_name, "paused")
 
+        logger.info(f"VM {vm_name} paused")
         await update.message.reply_text(f"⏸️ VM '{vm_name}' paused!")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to pause VM")
         await update.message.reply_text(f"❌ Failed to pause VM: {e}")
 
 
@@ -308,6 +322,7 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Resuming VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -324,8 +339,10 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await get_db().update_vm_state(vm_name, "running")
 
+        logger.info(f"VM {vm_name} resumed")
         await update.message.reply_text(f"▶️ VM '{vm_name}' resumed!")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to resume VM")
         await update.message.reply_text(f"❌ Failed to resume VM: {e}")
 
 
@@ -338,6 +355,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Creating backup for VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -351,12 +369,14 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if backup:
             size_mb = backup["size_bytes"] / (1024 * 1024)
+            logger.info(f"Backup created for {vm_name}: {backup['path']}")
             await update.message.reply_text(
                 f"✅ Backup created!\nFile: {backup['path']}\nSize: {size_mb:.2f} MB"
             )
         else:
             await update.message.reply_text("❌ Backup failed")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to create backup")
         await update.message.reply_text(f"❌ Backup failed: {e}")
 
 
@@ -371,6 +391,7 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vm_name = context.args[0]
     backup_id = int(context.args[1]) if len(context.args) > 1 else None
 
+    logger.info(f"Recovering VM: {vm_name}, backup_id: {backup_id}")
     vm = await get_db().get_vm(vm_name)
     if not vm:
         await update.message.reply_text(f"VM '{vm_name}' not found")
@@ -396,12 +417,14 @@ async def recover_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = await get_backup_manager().restore_backup(vm_name, backup_id=backup_id)
 
         if result:
+            logger.info(f"VM {vm_name} recovered from backup {backup_id}")
             await update.message.reply_text(
                 "✅ VM recovered from backup!\nNote: You may need to restart the VM."
             )
         else:
             await update.message.reply_text("❌ Recovery failed")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to recover from backup")
         await update.message.reply_text(f"❌ Recovery failed: {e}")
 
 
@@ -414,6 +437,7 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
+    logger.info(f"Deleting VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -433,8 +457,10 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await get_db().delete_vm(vm_name)
 
+        logger.info(f"VM {vm_name} deleted")
         await update.message.reply_text(f"🗑️ VM '{vm_name}' deleted!")
     except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to delete VM")
         await update.message.reply_text(f"❌ Delete failed: {e}")
 
 
@@ -443,6 +469,7 @@ async def create_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start the VM creation conversation."""
     if not update.message:
         return
+    logger.info("Starting VM creation conversation")
     await update.message.reply_text(
         "Creating a new VM...\n\nPlease enter a name for your VM:"
     )
@@ -562,6 +589,7 @@ async def create_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Create VM record
     await get_db().create_vm(vm_name, vcpus, memory, disk)
 
+    logger.info(f"VM {vm_name} created: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk")
     await update.message.reply_text(
         f"✅ VM '{vm_name}' created!\n\n"
         f"Resources: {vcpus} vCPU, {memory} MB RAM, {disk} GB disk\n\n"
@@ -575,6 +603,7 @@ async def create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel VM creation."""
     if not update.message:
         return
+    logger.info("VM creation cancelled")
     await update.message.reply_text("VM creation cancelled.")
     return ConversationHandler.END
 

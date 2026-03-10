@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -11,6 +12,8 @@ import aiohttp
 from aiohttp import UnixConnector
 
 from clawmama.config import config
+
+logger = logging.getLogger("clawmama.firecracker")
 
 
 class FirecrackerManager:
@@ -41,6 +44,7 @@ class FirecrackerManager:
         disk_gb: int | None = None,
     ) -> dict:
         """Create a new Firecracker microVM."""
+        logger.info(f"[{self.vm_name}] Creating VM configuration...")
         vcpus = vcpus or config.default_vcpus
         memory_mib = memory_mib or config.default_memory_mib
         disk_gb = disk_gb or config.default_disk_gb
@@ -51,14 +55,19 @@ class FirecrackerManager:
         disk_gb = min(disk_gb, config.max_disk_gb)
 
         self._ensure_vm_dir()
+        logger.info(f"[{self.vm_name}] VM directory: {self.vm_dir}")
 
         # Create disk image if it doesn't exist
         disk_path = self._get_drive_path()
         if not Path(disk_path).exists():
+            logger.info(f"[{self.vm_name}] Creating disk image: {disk_gb}G at {disk_path}")
             # Create sparse disk image
             subprocess.run(["truncate", "-s", f"{disk_gb}G", disk_path], check=True)
             # Format as ext4
+            logger.info(f"[{self.vm_name}] Formatting disk as ext4...")
             subprocess.run(["mkfs.ext4", "-F", disk_path], check=True)
+        else:
+            logger.info(f"[{self.vm_name}] Using existing disk: {disk_path}")
 
         # Generate firecracker config
         fc_config = {
@@ -91,8 +100,11 @@ class FirecrackerManager:
 
         # Write config to temp file
         config_path = self.vm_dir / "fc_config.json"
+        logger.info(f"[{self.vm_name}] Writing Firecracker config to: {config_path}")
         with open(config_path, "w") as f:
-            json.dump(fc_config, f)
+            json.dump(fc_config, f, indent=2)
+
+        logger.info(f"[{self.vm_name}] VM configuration complete: {vcpus} vCPU, {memory_mib} MB, {disk_gb} GB")
 
         return {
             "vcpus": vcpus,
@@ -110,15 +122,30 @@ class FirecrackerManager:
 
     async def start_vm(self) -> str | None:
         """Start the Firecracker microVM."""
+        logger.info(f"[{self.vm_name}] Starting VM...")
+
+        # Check kernel exists
         if not Path(config.kernel_path).exists():
+            logger.error(f"[{self.vm_name}] Kernel not found at {config.kernel_path}")
             raise FileNotFoundError(
                 f"Kernel not found at {config.kernel_path}. "
                 "Please download the Firecracker kernel."
             )
 
+        logger.info(f"[{self.vm_name}] Using kernel: {config.kernel_path}")
+
         # Setup TAP interface
         tap_iface = self._get_network_iface()
+        logger.info(f"[{self.vm_name}] Setting up TAP interface: {tap_iface}")
         await self._setup_network(tap_iface)
+
+        # Check firecracker binary exists
+        if not Path(config.firecracker_binary).exists():
+            logger.error(f"[{self.vm_name}] Firecracker binary not found at {config.firecracker_binary}")
+            raise FileNotFoundError(
+                f"Firecracker binary not found at {config.firecracker_binary}. "
+                "Please install Firecracker."
+            )
 
         # Start firecracker in background
         cmd = [
@@ -128,6 +155,7 @@ class FirecrackerManager:
             "--config-file",
             str(self.vm_dir / "fc_config.json"),
         ]
+        logger.info(f"[{self.vm_name}] Starting firecracker: {' '.join(cmd)}")
 
         # Create subprocess with nohup to prevent signal handling
         subprocess.Popen(
@@ -137,40 +165,58 @@ class FirecrackerManager:
             start_new_session=True,
         )
 
+        logger.info(f"[{self.vm_name}] Firecracker process started, waiting for boot...")
+
         # Wait for VM to boot and get IP
         await asyncio.sleep(3)
 
         # Try to get IP via DHCP
         ip_address = await self._wait_for_dhcp()
+        logger.info(f"[{self.vm_name}] VM started with IP: {ip_address}")
 
         return ip_address
 
     async def _setup_network(self, tap_iface: str):
         """Setup TAP interface and iptables rules."""
+        logger.info(f"[{tap_iface}] Setting up TAP interface...")
         try:
             # Create TAP interface
-            subprocess.run(
+            result = subprocess.run(
                 ["ip", "tuntap", "add", "mode", "tap", "dev", tap_iface],
                 check=True,
                 capture_output=True,
+                text=True,
             )
-            subprocess.run(
-                ["ip", "link", "set", tap_iface, "up"], check=True, capture_output=True
+            logger.info(f"[{tap_iface}] Created TAP interface: {result.stdout.strip()}")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"[{tap_iface}] TAP interface creation failed (may already exist): {e.stderr}")
+
+        try:
+            result = subprocess.run(
+                ["ip", "link", "set", tap_iface, "up"], check=True, capture_output=True, text=True
             )
+            logger.info(f"[{tap_iface}] Set interface up")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
+
+        try:
             subprocess.run(
                 ["ip", "link", "set", tap_iface, "master", "br-clawmama"],
                 check=True,
                 capture_output=True,
             )
-        except subprocess.CalledProcessError:
-            # Interface might already exist, try to find it
-            pass
+            logger.info(f"[{tap_iface}] Added to bridge br-clawmama")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"[{tap_iface}] Failed to add to bridge: {e.stderr}")
 
     async def _wait_for_dhcp(self, timeout: int = 30) -> Optional[str]:
         """Wait for DHCP assignment."""
+        logger.info(f"[{self.vm_name}] Waiting for DHCP assignment...")
         # In practice, we'd need to monitor the tap interface
         # For now, return a generated IP based on VM name
-        return self._calculate_ip()
+        ip = self._calculate_ip()
+        logger.info(f"[{self.vm_name}] Assigned IP: {ip}")
+        return ip
 
     def _calculate_ip(self) -> str:
         """Calculate IP based on VM name for consistency."""
@@ -179,6 +225,8 @@ class FirecrackerManager:
 
     async def stop_vm(self) -> bool:
         """Stop the Firecracker microVM."""
+        logger.info(f"[{self.vm_name}] Stopping VM...")
+
         try:
             connector = UnixConnector(path=self.socket_path)
             async with aiohttp.ClientSession(connector=connector) as session:
@@ -187,14 +235,16 @@ class FirecrackerManager:
                     "http://localhost/-actions",
                     params={"action_type": "SendCtrlAltDel"},
                 )
-        except Exception:
-            pass
+                logger.info(f"[{self.vm_name}] Sent CtrlAltDel")
+        except Exception as e:
+            logger.debug(f"[{self.vm_name}] Failed to send CtrlAltDel (VM may not be running): {e}")
 
         # Kill the firecracker process
         try:
             subprocess.run(["pkill", "-f", f"firecracker.*{self.vm_name}"], check=True)
+            logger.info(f"[{self.vm_name}] Killed firecracker process")
         except subprocess.CalledProcessError:
-            pass
+            logger.debug(f"[{self.vm_name}] No firecracker process found")
 
         # Clean up TAP interface
         tap_iface = self._get_network_iface()
@@ -202,13 +252,15 @@ class FirecrackerManager:
             subprocess.run(
                 ["ip", "link", "del", tap_iface], check=True, capture_output=True
             )
-        except subprocess.CalledProcessError:
-            pass
+            logger.info(f"[{tap_iface}] Deleted TAP interface")
+        except subprocess.CalledProcessError as e:
+            logger.debug(f"[{tap_iface}] Failed to delete TAP interface: {e.stderr}")
 
         return True
 
     async def pause_vm(self) -> bool:
         """Pause the VM (freeze CPU)."""
+        logger.info(f"[{self.vm_name}] Pausing VM...")
         connector = UnixConnector(path=self.socket_path)
         async with aiohttp.ClientSession(connector=connector) as session:
             await session.put("http://localhost/vm", params={"action_type": "Pause"})
@@ -216,6 +268,7 @@ class FirecrackerManager:
 
     async def resume_vm(self) -> bool:
         """Resume the VM (unfreeze CPU)."""
+        logger.info(f"[{self.vm_name}] Resuming VM...")
         connector = UnixConnector(path=self.socket_path)
         async with aiohttp.ClientSession(connector=connector) as session:
             await session.put("http://localhost/vm", params={"action_type": "Resume"})
@@ -249,9 +302,11 @@ class FirecrackerManager:
 
     async def delete_vm(self):
         """Delete the VM and all its resources."""
+        logger.info(f"[{self.vm_name}] Deleting VM...")
         await self.stop_vm()
         # Remove VM directory
         if self.vm_dir.exists():
             import shutil
 
             shutil.rmtree(self.vm_dir)
+            logger.info(f"[{self.vm_name}] Removed VM directory: {self.vm_dir}")
