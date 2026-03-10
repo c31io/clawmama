@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from telegram.ext import Application
+from telegram.ext import Application, MessageHandler, filters
 
 from clawmama.config import config
 from clawmama.logging_ import setup_logging
@@ -65,6 +65,12 @@ def main():
 
     # Setup handlers
     setup_handlers(application)
+
+    # Catch-all handler for debugging
+    async def catch_all(update, context):
+        logger.info("Catch-all received: update=%s, update.message=%s", update, update.message)
+
+    application.add_handler(MessageHandler(filters.ALL, catch_all))
 
     # Start bot (run_polling manages its own event loop)
     logger.info("Starting bot...")
