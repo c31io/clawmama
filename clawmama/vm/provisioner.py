@@ -41,6 +41,7 @@ class VMProvisioner:
 
         self._ensure_dirs()
         # Ensure kernel parent dir exists
+        logger.info(f"Creating kernel dir: {kernel_path.parent}")
         kernel_path.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
@@ -70,14 +71,20 @@ class VMProvisioner:
 
         # Extract vmlinux from tarball
         with tarfile.open(fileobj=io.BytesIO(response.content)) as tar:
+            vmlinux_found = False
             for member in tar.getmembers():
                 if member.name.endswith("/vmlinux"):
-                    logger.info("Extracting vmlinux...")
+                    vmlinux_found = True
+                    logger.info(f"Extracting vmlinux from {member.name}...")
                     kernel_file = tar.extractfile(member)
                     if kernel_file:
                         with open(kernel_path, "wb") as f:
                             f.write(kernel_file.read())
                     break
+            if not vmlinux_found:
+                raise RuntimeError(
+                    f"vmlinux not found in tarball. Contents: {[m.name for m in tar.getmembers()[:10]]}"
+                )
 
         os.chmod(kernel_path, 0o755)
 

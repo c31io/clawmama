@@ -58,7 +58,7 @@ async def main():
     try:
         await setup_environment()
     except Exception as e:
-        logger.warning(f"Environment setup warning: {e}")
+        logger.error(f"Environment setup failed: {e}", exc_info=True)
 
     # Create application
     application = Application.builder().token(token).build()
