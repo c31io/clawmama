@@ -69,7 +69,11 @@ class Config:
     @property
     def firecracker_binary(self) -> str:
         """Get firecracker binary path."""
-        return self._config.get("firecracker", {}).get("binary_path", "firecracker")
+        return str(
+            _expand_path(
+                self._config.get("firecracker", {}).get("binary_path", "~/.local/bin/firecracker")
+            )
+        )
 
     @property
     def kernel_path(self) -> str:
