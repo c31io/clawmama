@@ -29,9 +29,9 @@ class VMProvisioner:
         "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
     )
 
-    # Firecracker kernel URL
-    FIRECRACKER_KERNEL_URL = (
-        "https://s3.amazonaws.com/firecracker-artifacts-core/vmlinux/vmlinux-5.10.204"
+    # Firecracker release API
+    FIRECRACKER_RELEASE_API = (
+        "https://api.github.com/repos/firecracker-microvm/firecracker/releases/latest"
     )
 
     def __init__(self):
@@ -52,11 +52,40 @@ class VMProvisioner:
         self._ensure_dirs()
         logger.info(f"Downloading Firecracker kernel to {kernel_path}...")
 
-        response = requests.get(self.FIRECRACKER_KERNEL_URL, stream=True)
+        # Get latest release info
+        response = requests.get(self.FIRECRACKER_RELEASE_API)
         response.raise_for_status()
-        with open(kernel_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        release = response.json()
+
+        # Find x86_64 release asset
+        tarball_url = None
+        for asset in release.get("assets", []):
+            if asset["name"].endswith("-x86_64.tgz"):
+                tarball_url = asset["browser_download_url"]
+                break
+
+        if not tarball_url:
+            raise RuntimeError("Could not find Firecracker release tarball")
+
+        # Download and extract
+        import tarfile
+        import io
+
+        logger.info(f"Downloading Firecracker release from {tarball_url}...")
+        response = requests.get(tarball_url, stream=True)
+        response.raise_for_status()
+
+        # Extract vmlinux from tarball
+        with tarfile.open(fileobj=io.BytesIO(response.content)) as tar:
+            for member in tar.getmembers():
+                if member.name.endswith("/vmlinux"):
+                    logger.info("Extracting vmlinux...")
+                    kernel_file = tar.extractfile(member)
+                    if kernel_file:
+                        with open(kernel_path, "wb") as f:
+                            f.write(kernel_file.read())
+                    break
+
         os.chmod(kernel_path, 0o755)
 
         return str(kernel_path)
