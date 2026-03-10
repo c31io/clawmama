@@ -4,6 +4,8 @@
 # Telegram Bot
 bot:
   token: "YOUR_TELEGRAM_BOT_TOKEN"
+  # Your Telegram user ID (get it from @userinfobot)
+  user_id: YOUR_TELEGRAM_USER_ID
 
 # Firecracker settings
 firecracker:

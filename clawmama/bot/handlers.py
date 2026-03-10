@@ -1,6 +1,6 @@
 """Telegram bot handlers."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from telegram import Update
 from telegram.ext import (
@@ -17,11 +17,44 @@ from clawmama.config import config
 from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
 
 
+def _check_authorized(update: Update) -> bool:
+    """Check if user is authorized to use the bot."""
+    if not update.message:
+        return False
+    if not update.message.from_user:
+        return False
+
+    allowed_user_id = config.bot_user_id
+    if allowed_user_id is None:
+        return True  # No restriction configured
+
+    return update.message.from_user.id == allowed_user_id
+
+
 # Context type for handlers - use Any to satisfy ConversationHandler generic type
+# Defined early to avoid forward reference issues with _auth_guard
 if TYPE_CHECKING:
     BotContext = CallbackContext[Any, dict[str, Any], Any, Any]
 else:
     BotContext = ContextTypes.DEFAULT_TYPE
+
+
+def _auth_guard(
+    handler: Callable[[Update, BotContext], Any],
+) -> Callable[[Update, BotContext], Any]:
+    """Decorator to wrap handlers with authorization check."""
+
+    async def wrapper(update: Update, context: BotContext):
+        if not _check_authorized(update):
+            if update.message:
+                await update.message.reply_text(
+                    "⛔ Unauthorized: you are not allowed to use this bot."
+                )
+            return
+        return await handler(update, context)
+
+    return wrapper
+
 
 # Type alias for ConversationHandler to avoid generic issues
 ConversationHandlerAny = ConversationHandler[Any]
@@ -548,38 +581,51 @@ async def create_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def setup_handlers(application: Application):
     """Setup all bot handlers."""
-    # Basic commands
+    # Basic commands (start and help are public)
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("list", list_command))
-    application.add_handler(CommandHandler("status", status_command))
 
-    # VM lifecycle commands
-    application.add_handler(CommandHandler("run", start_vm_command))
-    application.add_handler(CommandHandler("stop", stop_vm_command))
-    application.add_handler(CommandHandler("pause", pause_vm_command))
-    application.add_handler(CommandHandler("resume", resume_vm_command))
+    # Protected commands - wrap with auth guard
+    protected_commands = [
+        ("list", list_command),
+        ("status", status_command),
+        ("run", start_vm_command),
+        ("stop", stop_vm_command),
+        ("pause", pause_vm_command),
+        ("resume", resume_vm_command),
+        ("backup", backup_command),
+        ("recover", recover_command),
+        ("delete", delete_command),
+    ]
 
-    # Backup/recovery commands
-    application.add_handler(CommandHandler("backup", backup_command))
-    application.add_handler(CommandHandler("recover", recover_command))
+    for cmd, handler in protected_commands:
+        application.add_handler(CommandHandler(cmd, _auth_guard(handler)))
 
-    # Delete command
-    application.add_handler(CommandHandler("delete", delete_command))
-
-    # Create VM conversation
+    # Create VM conversation (protected)
     create_handler = ConversationHandlerAny(
-        entry_points=[CommandHandler("create", create_start)],
+        entry_points=[CommandHandler("create", _auth_guard(create_start))],
         states={
-            CREATE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_name)],
+            CREATE_NAME: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_name)
+                )
+            ],
             CREATE_VCPUS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, create_vcpus)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_vcpus)
+                )
             ],
             CREATE_MEMORY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, create_memory)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_memory)
+                )
             ],
-            CREATE_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_disk)],
+            CREATE_DISK: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND, _auth_guard(create_disk)
+                )
+            ],
         },
-        fallbacks=[CommandHandler("cancel", create_cancel)],
+        fallbacks=[CommandHandler("cancel", _auth_guard(create_cancel))],
     )
     application.add_handler(create_handler)

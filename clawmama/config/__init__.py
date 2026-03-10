@@ -56,6 +56,17 @@ class Config:
         )
 
     @property
+    def bot_user_id(self) -> int | None:
+        """Get authorized Telegram user ID."""
+        user_id = self._config.get("bot", {}).get("user_id")
+        if user_id is None:
+            return None
+        try:
+            return int(user_id)
+        except (ValueError, TypeError):
+            return None
+
+    @property
     def firecracker_binary(self) -> str:
         """Get firecracker binary path."""
         return self._config.get("firecracker", {}).get("binary_path", "firecracker")
