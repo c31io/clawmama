@@ -157,6 +157,9 @@ class FirecrackerManager:
         ]
         logger.info(f"[{self.vm_name}] Starting firecracker: {' '.join(cmd)}")
 
+        # Ensure VM directory exists
+        self._ensure_vm_dir()
+
         # Create subprocess with nohup to prevent signal handling
         subprocess.Popen(
             cmd,
