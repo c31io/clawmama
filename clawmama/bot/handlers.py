@@ -217,6 +217,10 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         fc = FirecrackerManager(vm_name)
 
+        # Ensure VM config exists (create if needed)
+        vm_config = await fc.create_vm(vm.get("vcpus"), vm.get("memory_mib"), vm.get("disk_gb"))
+        logger.info(f"[{vm_name}] VM config ready: {vm_config}")
+
         # Start the VM
         ip_address = await fc.start_vm()
         assert ip_address is not None

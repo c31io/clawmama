@@ -81,8 +81,10 @@ class VMProvisioner:
         return str(image_path)
 
     async def setup_networking(self) -> bool:
-        """Setup host networking for VMs (requires root)."""
-        # Check if bridge already exists (e.g., from systemd service)
+        """Setup host networking for VMs (requires root via systemd service)."""
+        import os
+        
+        # Check if bridge already exists
         result = subprocess.run(
             ["ip", "link", "show", "br-clawmama"],
             capture_output=True,
@@ -91,62 +93,29 @@ class VMProvisioner:
             logger.info("Bridge br-clawmama already exists, skipping network setup")
             return True
 
-        # Create bridge for VMs
-        try:
-            subprocess.run(
-                ["ip", "link", "add", "br-clawmama", "type", "bridge"],
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError:
-            pass  # Bridge might already exist
-
-        # Setup NAT
-        try:
-            # Enable IP forwarding
-            with open("/proc/sys/net/ipv4/ip_forward", "w") as f:
-                f.write("1")
-
-            # Add NAT rule
-            subprocess.run(
-                [
-                    "iptables",
-                    "-t",
-                    "nat",
-                    "-A",
-                    "POSTROUTING",
-                    "-s",
-                    "172.30.0.0/30",
-                    "!",
-                    "-d",
-                    "172.30.0.0/30",
-                    "-j",
-                    "MASQUERADE",
-                ],
-                check=True,
-                capture_output=True,
-            )
-
-            # Allow forwarding from bridge
-            subprocess.run(
-                ["iptables", "-A", "FORWARD", "-i", "br-clawmama", "-j", "ACCEPT"],
-                check=True,
-                capture_output=True,
-            )
-
-            # Block inbound to VMs (security)
-            if config.block_inbound:
-                subprocess.run(
-                    ["iptables", "-A", "INPUT", "-i", "br-clawmama", "-j", "DROP"],
-                    check=True,
+        # Try to run network setup script via sudo
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "setup-network.sh"
+        
+        if script_path.exists():
+            logger.info("Running network setup script via sudo...")
+            try:
+                result = subprocess.run(
+                    ["sudo", str(script_path)],
                     capture_output=True,
+                    text=True,
                 )
-
-            return True
-
-        except Exception as e:
-            logger.warning(f"Networking setup failed (may require root): {e}")
-            return False
+                if result.returncode == 0:
+                    logger.info("Network setup complete")
+                    return True
+                else:
+                    logger.error(f"Network setup failed: {result.stderr}")
+                    return False
+            except Exception as e:
+                logger.error(f"Failed to run network setup: {e}")
+                return False
+        
+        logger.warning("Network setup script not found, skipping")
+        return False
 
     async def prepare(self):
         """Prepare the host for running VMs."""

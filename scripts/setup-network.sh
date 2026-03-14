@@ -7,6 +7,8 @@ set -e
 BRIDGE_NAME="br-clawmama"
 BRIDGE_IP="172.30.0.1"
 VM_NETWORK="172.30.0.0/30"
+TAP_RANGE_START=250
+TAP_RANGE_END=254
 
 echo "Setting up ClawMama network..."
 
@@ -15,8 +17,19 @@ if ! ip link show "$BRIDGE_NAME" > /dev/null 2>&1; then
     echo "Creating bridge $BRIDGE_NAME..."
     ip link add name "$BRIDGE_NAME" type bridge
     ip addr add "${BRIDGE_IP}/30" dev "$BRIDGE_NAME"
-    ip link set "$BRIDGE_NAME" up
 fi
+
+# Create TAP devices pool (for VMs to use)
+echo "Creating TAP device pool..."
+for i in $(seq $TAP_RANGE_START $TAP_RANGE_END); do
+    TAP_NAME="tap$i"
+    if ! ip link show "$TAP_NAME" > /dev/null 2>&1; then
+        ip tuntap add "$TAP_NAME" mode tap 2>/dev/null || true
+    fi
+    # Bring up and add to bridge
+    ip link set "$TAP_NAME" up 2>/dev/null || true
+    ip link set "$TAP_NAME" master "$BRIDGE_NAME" 2>/dev/null || true
+done
 
 # Enable IP forwarding
 echo "Enabling IP forwarding..."
@@ -37,6 +50,10 @@ if [ "$BLOCK_INBOUND" = "true" ]; then
         iptables -A INPUT -i "$BRIDGE_NAME" -j DROP
 fi
 
+# Bring up bridge
+ip link set "$BRIDGE_NAME" up
+
 echo "Network setup complete!"
 echo "Bridge: $BRIDGE_NAME ($BRIDGE_IP)"
 echo "VM network: $VM_NETWORK"
+echo "TAP pool: tap$TAP_RANGE_START-tap$TAP_RANGE_END"

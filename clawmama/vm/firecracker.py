@@ -65,7 +65,7 @@ class FirecrackerManager:
             subprocess.run(["truncate", "-s", f"{disk_gb}G", disk_path], check=True)
             # Format as ext4
             logger.info(f"[{self.vm_name}] Formatting disk as ext4...")
-            subprocess.run(["mkfs.ext4", "-F", disk_path], check=True)
+            subprocess.run(["/usr/sbin/mkfs.ext4", "-F", disk_path], check=True)
         else:
             logger.info(f"[{self.vm_name}] Using existing disk: {disk_path}")
 
@@ -86,7 +86,7 @@ class FirecrackerManager:
             "machine-config": {
                 "vcpu_count": vcpus,
                 "mem_size_mib": memory_mib,
-                "ht_enabled": False,
+                "smt": False,
             },
             "network-interfaces": [
                 {
@@ -115,10 +115,14 @@ class FirecrackerManager:
         }
 
     def _generate_mac(self) -> str:
-        """Generate a MAC address for the VM."""
+        """Generate a valid MAC address for the VM."""
         # Use a fixed prefix for consistency
-        mac_int = hash(self.vm_name) % (256**3)
-        return f"02:00:00:{mac_int:06x}"
+        # Valid MAC: 02:XX:XX:XX:XX:XX (locally administered, unicast)
+        mac_int = hash(self.vm_name) % (256**5)
+        mac_bytes = mac_int.to_bytes(6, 'big')
+        # Set bit 1 (locally administered) and clear bit 0 (unicast)
+        mac_bytes = bytes([mac_bytes[0] & 0xFE | 0x02]) + mac_bytes[1:]
+        return ":".join(f"{b:02x}" for b in mac_bytes)
 
     async def start_vm(self) -> str | None:
         """Start the Firecracker microVM."""
@@ -180,31 +184,59 @@ class FirecrackerManager:
         return ip_address
 
     async def _setup_network(self, tap_iface: str):
-        """Setup TAP interface and iptables rules."""
+        """Setup TAP interface - use pre-created pool if available."""
         logger.info(f"[{tap_iface}] Setting up TAP interface...")
+        
+        # Check if TAP already exists (from pool created by setup-network.sh)
+        result = subprocess.run(
+            ["ip", "link", "show", tap_iface],
+            capture_output=True,
+        )
+        
+        if result.returncode != 0:
+            # TAP doesn't exist, try to create (may fail without permissions)
+            try:
+                result = subprocess.run(
+                    ["sudo", "ip", "tuntap", "add", "mode", "tap", "dev", tap_iface],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                logger.info(f"[{tap_iface}] Created TAP interface")
+            except subprocess.CalledProcessError as e:
+                # Try to find an unused TAP from the pool
+                logger.warning(f"[{tap_iface}] Failed to create, trying TAP pool...")
+                for i in range(250, 255):
+                    pool_tap = f"tap{i}"
+                    result = subprocess.run(
+                        ["ip", "link", "show", pool_tap],
+                        capture_output=True,
+                    )
+                    if result.returncode == 0:
+                        # Found an existing TAP, use it instead
+                        tap_iface = pool_tap
+                        logger.info(f"[{tap_iface}] Using TAP from pool")
+                        break
+                else:
+                    logger.error("No TAP devices available in pool")
+                    return
+
+        # Bring up the interface with sudo
         try:
-            # Create TAP interface
-            result = subprocess.run(
-                ["ip", "tuntap", "add", "mode", "tap", "dev", tap_iface],
+            subprocess.run(
+                ["sudo", "ip", "link", "set", tap_iface, "up"],
                 check=True,
                 capture_output=True,
                 text=True,
-            )
-            logger.info(f"[{tap_iface}] Created TAP interface: {result.stdout.strip()}")
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"[{tap_iface}] TAP interface creation failed (may already exist): {e.stderr}")
-
-        try:
-            result = subprocess.run(
-                ["ip", "link", "set", tap_iface, "up"], check=True, capture_output=True, text=True
             )
             logger.info(f"[{tap_iface}] Set interface up")
         except subprocess.CalledProcessError as e:
             logger.warning(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
 
+        # Add to bridge with sudo
         try:
             subprocess.run(
-                ["ip", "link", "set", tap_iface, "master", "br-clawmama"],
+                ["sudo", "ip", "link", "set", tap_iface, "master", "br-clawmama"],
                 check=True,
                 capture_output=True,
             )
