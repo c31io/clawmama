@@ -82,6 +82,15 @@ class VMProvisioner:
 
     async def setup_networking(self) -> bool:
         """Setup host networking for VMs (requires root)."""
+        # Check if bridge already exists (e.g., from systemd service)
+        result = subprocess.run(
+            ["ip", "link", "show", "br-clawmama"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            logger.info("Bridge br-clawmama already exists, skipping network setup")
+            return True
+
         # Create bridge for VMs
         try:
             subprocess.run(

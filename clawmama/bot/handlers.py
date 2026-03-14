@@ -1,6 +1,8 @@
 """Telegram bot handlers."""
 
+import asyncio
 import logging
+import subprocess
 from typing import TYPE_CHECKING, Any, Callable
 
 from telegram import Update
@@ -98,6 +100,7 @@ I manage Firecracker microVMs with OpenClaw for you.
 
 Available commands:
 /help - Show this help message
+/msg <text> - Test message (no Telegram account needed)
 /list - List all VMs
 /create <name> [--vcpus N] [--memory MB] [--disk GB] - Create a new VM
 /status <name> - Check VM status
@@ -108,6 +111,7 @@ Available commands:
 /backup <name> - Create backup
 /recover <name> - Recover from backup
 /delete <name> - Delete a VM
+/install <name> - Install OpenClaw in a VM
 
 Note: VMs are isolated and cannot attack the host.
 """
@@ -451,6 +455,18 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # Create VM command
+async def msg_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /msg command - test message without Telegram user."""
+    if not update.message:
+        return
+    
+    # Echo the message back - useful for testing without real Telegram user
+    message_text = " ".join(context.args) if context.args else "(empty)"
+    logger.info(f"[msg] Test message: {message_text}")
+    
+    await update.message.reply_text(f"📝 Test message received: {message_text}")
+
+
 async def create_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Create a new VM with all parameters in one command."""
     if not update.message:
@@ -533,11 +549,77 @@ async def create_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /install command - install OpenClaw in a VM."""
+    if not update.message:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /install <vm_name>")
+        return
+
+    vm_name = context.args[0]
+    logger.info(f"Installing OpenClaw in VM: {vm_name}")
+    vm = await get_db().get_vm(vm_name)
+
+    if not vm:
+        await update.message.reply_text(f"VM '{vm_name}' not found")
+        return
+
+    if vm["state"] != "running":
+        await update.message.reply_text(
+            f"VM '{vm_name}' must be running to install OpenClaw. Start it with /run {vm_name}"
+        )
+        return
+
+    ip_address = vm.get("ip_address")
+    if not ip_address:
+        await update.message.reply_text(
+            f"VM '{vm_name}' has no IP address. Make sure it's running properly."
+        )
+        return
+
+    await update.message.reply_text(
+        f"Installing OpenClaw in '{vm_name}' ({ip_address})...\n"
+        "This may take a few minutes..."
+    )
+
+    try:
+        # SSH into VM and install OpenClaw
+        install_script = (
+            "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard"
+        )
+        
+        result = await asyncio.create_subprocess_shell(
+            f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@{ip_address} '{install_script}'",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        
+        stdout, stderr = await result.communicate()
+        
+        if result.returncode == 0:
+            logger.info(f"OpenClaw installed successfully in {vm_name}")
+            await update.message.reply_text(
+                f"✅ OpenClaw installed successfully in '{vm_name}'!\n\n"
+                f"You can now connect to the VM's OpenClaw instance."
+            )
+        else:
+            error_msg = stderr.decode() if stderr else "Unknown error"
+            logger.error(f"Failed to install OpenClaw in {vm_name}: {error_msg}")
+            await update.message.reply_text(
+                f"❌ Installation failed: {error_msg[:500]}"
+            )
+    except Exception as e:
+        logger.exception(f"[{vm_name}] Failed to install OpenClaw")
+        await update.message.reply_text(f"❌ Installation failed: {e}")
+
+
 def setup_handlers(application: Application):
     """Setup all bot handlers."""
     # Basic commands (start and help are public)
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("msg", msg_command))
 
     # Protected commands - wrap with auth guard
     protected_commands = [
@@ -550,6 +632,7 @@ def setup_handlers(application: Application):
         ("backup", backup_command),
         ("recover", recover_command),
         ("delete", delete_command),
+        ("install", install_command),
     ]
 
     for cmd, handler in protected_commands:

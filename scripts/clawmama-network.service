@@ -1,0 +1,14 @@
+[Unit]
+Description=ClawMama Network Setup
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/c31io-claw/clawmama/scripts/setup-network.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
