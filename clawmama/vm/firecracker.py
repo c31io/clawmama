@@ -88,19 +88,27 @@ class FirecrackerManager:
                 "mem_size_mib": memory_mib,
                 "smt": False,
             },
-            "network-interfaces": [
+            "metrics": {"metrics_path": str(self.vm_dir / "metrics.json")},
+        }
+
+        # Only add network if not in vsock-only mode
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
+        if vsock_only:
+            # vsock-only mode: add vsock but no network
+            fc_config["vsock"] = {
+                "iface_id": "vsock0",
+                "guest_cid": 3,
+            }
+            logger.info(f"[{self.vm_name}] Running in vsock-only mode (no network)")
+        else:
+            # Normal mode: add network
+            fc_config["network-interfaces"] = [
                 {
                     "iface_id": "eth0",
                     "guest_mac": self._generate_mac(),
                     "host_dev_name": self._get_network_iface(),
                 }
-            ],
-            "vsock": {
-                "iface_id": "vsock0",
-                "guest_cid": 3,  # VM's CID
-            },
-            "metrics": {"metrics_path": str(self.vm_dir / "metrics.json")},
-        }
+            ]
 
         # Write config to temp file
         config_path = self.vm_dir / "fc_config.json"
@@ -142,10 +150,14 @@ class FirecrackerManager:
 
         logger.info(f"[{self.vm_name}] Using kernel: {config.kernel_path}")
 
-        # Setup TAP interface
-        tap_iface = self._get_network_iface()
-        logger.info(f"[{self.vm_name}] Setting up TAP interface: {tap_iface}")
-        await self._setup_network(tap_iface)
+        # Setup TAP interface (skip in vsock-only mode)
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
+        if not vsock_only:
+            tap_iface = self._get_network_iface()
+            logger.info(f"[{self.vm_name}] Setting up TAP interface: {tap_iface}")
+            await self._setup_network(tap_iface)
+        else:
+            logger.info(f"[{self.vm_name}] Skipping TAP setup (vsock-only mode)")
 
         # Check firecracker binary exists
         if not Path(config.firecracker_binary).exists():
