@@ -184,7 +184,7 @@ class FirecrackerManager:
         return ip_address
 
     async def _setup_network(self, tap_iface: str):
-        """Setup TAP interface - use pre-created pool if available."""
+        """Setup TAP interface - use pre-created pool, call network service if needed."""
         logger.info(f"[{tap_iface}] Setting up TAP interface...")
         
         # Check if TAP already exists (from pool created by setup-network.sh)
@@ -194,34 +194,47 @@ class FirecrackerManager:
         )
         
         if result.returncode != 0:
-            # TAP doesn't exist, try to create (may fail without permissions)
-            try:
+            # TAP doesn't exist, try to find unused TAP from pool
+            logger.warning(f"[{tap_iface}] Not found, trying TAP pool...")
+            for i in range(250, 255):
+                pool_tap = f"tap{i}"
                 result = subprocess.run(
-                    ["sudo", "ip", "tuntap", "add", "mode", "tap", "dev", tap_iface],
-                    check=True,
+                    ["ip", "link", "show", pool_tap],
                     capture_output=True,
-                    text=True,
                 )
-                logger.info(f"[{tap_iface}] Created TAP interface")
-            except subprocess.CalledProcessError as e:
-                # Try to find an unused TAP from the pool
-                logger.warning(f"[{tap_iface}] Failed to create, trying TAP pool...")
-                for i in range(250, 255):
-                    pool_tap = f"tap{i}"
-                    result = subprocess.run(
-                        ["ip", "link", "show", pool_tap],
+                if result.returncode == 0:
+                    # Found an existing TAP, use it
+                    tap_iface = pool_tap
+                    logger.info(f"[{tap_iface}] Using TAP from pool")
+                    break
+            else:
+                # No TAPs available, try calling network service
+                logger.warning("No TAP devices in pool, calling network service...")
+                try:
+                    subprocess.run(
+                        ["sudo", "systemctl", "start", "clawmama-network"],
+                        check=True,
                         capture_output=True,
                     )
-                    if result.returncode == 0:
-                        # Found an existing TAP, use it instead
-                        tap_iface = pool_tap
-                        logger.info(f"[{tap_iface}] Using TAP from pool")
-                        break
-                else:
-                    logger.error("No TAP devices available in pool")
+                    # Try pool again after network service
+                    for i in range(250, 255):
+                        pool_tap = f"tap{i}"
+                        result = subprocess.run(
+                            ["ip", "link", "show", pool_tap],
+                            capture_output=True,
+                        )
+                        if result.returncode == 0:
+                            tap_iface = pool_tap
+                            logger.info(f"[{tap_iface}] Using TAP from pool after network service")
+                            break
+                    else:
+                        logger.error("Network service ran but no TAP devices available")
+                        return
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to start network service: {e.stderr}")
                     return
 
-        # Bring up the interface with sudo
+        # Bring up the interface (may need sudo)
         try:
             subprocess.run(
                 ["sudo", "ip", "link", "set", tap_iface, "up"],
