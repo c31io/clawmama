@@ -235,17 +235,25 @@ class FirecrackerManager:
                     logger.error(f"Failed to start network service: {e.stderr}")
                     return
 
-        # Bring up the interface (may need sudo)
+        # Bring up the interface with sudo AND set it up properly
         try:
+            # Bring up the interface
             subprocess.run(
                 ["sudo", "ip", "link", "set", tap_iface, "up"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            logger.info(f"[{tap_iface}] Set interface up")
+            # Ensure it's attached to bridge
+            subprocess.run(
+                ["sudo", "ip", "link", "set", tap_iface, "master", "br-clawmama"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.info(f"[{tap_iface}] Set interface up and attached to bridge")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
+            logger.warning(f"[{tap_iface}] Failed to set up interface: {e.stderr}")
 
         # Add to bridge with sudo
         try:
