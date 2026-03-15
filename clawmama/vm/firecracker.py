@@ -95,6 +95,10 @@ class FirecrackerManager:
                     "host_dev_name": self._get_network_iface(),
                 }
             ],
+            "vsock": {
+                "iface_id": "vsock0",
+                "guest_cid": 3,  # VM's CID
+            },
             "metrics": {"metrics_path": str(self.vm_dir / "metrics.json")},
         }
 
