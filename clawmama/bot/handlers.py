@@ -554,7 +554,7 @@ async def create_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /install command - install OpenClaw in a VM."""
+    """Handle /install command - install OpenClaw and clawkid in a VM."""
     if not update.message:
         return
     if not context.args:
@@ -562,7 +562,7 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     vm_name = context.args[0]
-    logger.info(f"Installing OpenClaw in VM: {vm_name}")
+    logger.info(f"Installing OpenClaw + clawkid in VM: {vm_name}")
     vm = await get_db().get_vm(vm_name)
 
     if not vm:
@@ -583,7 +583,7 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        f"Installing OpenClaw in '{vm_name}' ({ip_address})...\n"
+        f"Installing OpenClaw and clawkid in '{vm_name}' ({ip_address})...\n"
         "This may take a few minutes..."
     )
 
@@ -603,18 +603,53 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if result.returncode == 0:
             logger.info(f"OpenClaw installed successfully in {vm_name}")
-            await update.message.reply_text(
-                f"✅ OpenClaw installed successfully in '{vm_name}'!\n\n"
-                f"You can now connect to the VM's OpenClaw instance."
-            )
         else:
             error_msg = stderr.decode() if stderr else "Unknown error"
             logger.error(f"Failed to install OpenClaw in {vm_name}: {error_msg}")
             await update.message.reply_text(
-                f"❌ Installation failed: {error_msg[:500]}"
+                f"⚠️ OpenClaw install had issues: {error_msg[:500]}\n"
+                "Continuing with clawkid installation..."
             )
+        
+        # Install clawkid
+        await update.message.reply_text("Installing clawkid...")
+        
+        # Copy clawkid to VM via scp
+        clawkid_install = """
+            mkdir -p ~/clawkid
+            curl -fsSL https://raw.githubusercontent.com/c31io/clawmama/main/clawkid/clawkid.py -o ~/clawkid/clawkid.py
+            chmod +x ~/clawkid/clawkid.py
+            
+            # Add to crontab for startup
+            (crontab -l 2>/dev/null; echo "@reboot /usr/bin/python3 ~/clawkid/clawkid.py") | crontab -
+            
+            # Start now
+            nohup /usr/bin/python3 ~/clawkid/clawkid.py > ~/clawkid.log 2>&1 &
+        """
+        
+        result2 = await asyncio.create_subprocess_shell(
+            f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@{ip_address} '{clawkid_install}'",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        
+        stdout2, stderr2 = await result2.communicate()
+        
+        if result2.returncode == 0:
+            logger.info(f"clawkid installed successfully in {vm_name}")
+            await update.message.reply_text(
+                f"✅ OpenClaw and clawkid installed successfully in '{vm_name}'!\n\n"
+                f"clawkid will send heartbeats and accept commands via vsock."
+            )
+        else:
+            error_msg2 = stderr2.decode() if stderr2 else "Unknown error"
+            logger.error(f"Failed to install clawkid in {vm_name}: {error_msg2}")
+            await update.message.reply_text(
+                f"❌ clawkid installation failed: {error_msg2[:500]}"
+            )
+            
     except Exception as e:
-        logger.exception(f"[{vm_name}] Failed to install OpenClaw")
+        logger.exception(f"[{vm_name}] Failed to install")
         await update.message.reply_text(f"❌ Installation failed: {e}")
 
 
