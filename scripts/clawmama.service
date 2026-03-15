@@ -1,0 +1,15 @@
+[Unit]
+Description=ClawMama Telegram Bot for Firecracker VMs
+After=network.target clawmama-network.service
+Wants=clawmama-network.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/c31io-claw/clawmama
+ExecStart=/home/c31io-claw/.local/bin/uv run python /home/c31io-claw/clawmama/main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

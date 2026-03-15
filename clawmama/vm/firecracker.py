@@ -151,8 +151,9 @@ class FirecrackerManager:
                 "Please install Firecracker."
             )
 
-        # Start firecracker in background
+        # Start firecracker in background (use sudo for network access)
         cmd = [
+            "sudo",
             config.firecracker_binary,
             "--api-sock",
             self.socket_path,
