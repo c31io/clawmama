@@ -238,7 +238,7 @@ class FirecrackerManager:
         # Set up TAP interface properly with sudo
         try:
             # Bring up the interface
-            subprocess.run(
+            result = subprocess.run(
                 ["sudo", "ip", "link", "set", tap_iface, "up"],
                 check=True,
                 capture_output=True,
@@ -246,11 +246,12 @@ class FirecrackerManager:
             )
             logger.info(f"[{tap_iface}] Set interface up")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
+            logger.error(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
+            return
 
         # Attach to bridge
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["sudo", "ip", "link", "set", tap_iface, "master", "br-clawmama"],
                 check=True,
                 capture_output=True,
@@ -258,7 +259,8 @@ class FirecrackerManager:
             )
             logger.info(f"[{tap_iface}] Attached to bridge br-clawmama")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[{tap_iface}] Failed to attach to bridge: {e.stderr}")
+            logger.error(f"[{tap_iface}] Failed to attach to bridge: {e.stderr}")
+            return
             logger.info(f"[{tap_iface}] Added to bridge br-clawmama")
         except subprocess.CalledProcessError as e:
             logger.warning(f"[{tap_iface}] Failed to add to bridge: {e.stderr}")
