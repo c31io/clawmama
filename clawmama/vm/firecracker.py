@@ -24,6 +24,7 @@ class FirecrackerManager:
         self.vm_dir = Path(config.vm_dir) / vm_name
         self.socket_path = f"/tmp/firecracker-{vm_name}.sock"
         self.kernel_args = "console=ttyS0 reboot=k panic=1 ip=dhcp random.trust_cpu=on"
+        self.vsock_only_kernel_args = "console=ttyS0 reboot=k panic=1 ip=none random.trust_cpu=on"
 
     def _ensure_vm_dir(self):
         """Ensure VM directory exists."""
@@ -69,11 +70,16 @@ class FirecrackerManager:
         else:
             logger.info(f"[{self.vm_name}] Using existing disk: {disk_path}")
 
+        # Check vsock-only mode
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
+        print(f"[DEBUG] CLAWMAMA_VSOCK_ONLY env var: {os.environ.get('CLAWMAMA_VSOCK_ONLY', 'NOT SET')}, vsock_only: {vsock_only}")
+        boot_args = self.vsock_only_kernel_args if vsock_only else self.kernel_args
+        
         # Generate firecracker config
         fc_config = {
             "boot-source": {
                 "kernel_image_path": config.kernel_path,
-                "boot_args": self.kernel_args,
+                "boot_args": boot_args,
             },
             "drives": [
                 {
@@ -96,7 +102,7 @@ class FirecrackerManager:
         if vsock_only:
             # vsock-only mode: add vsock but no network
             fc_config["vsock"] = {
-                "iface_id": "vsock0",
+                "vsock_id": "vsock0",
                 "guest_cid": 3,
             }
             logger.info(f"[{self.vm_name}] Running in vsock-only mode (no network)")
