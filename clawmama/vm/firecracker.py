@@ -188,37 +188,37 @@ class FirecrackerManager:
         """Setup TAP interface - use pre-created pool, call network service if needed."""
         logger.info(f"[{tap_iface}] Setting up TAP interface...")
         
-        # Check if TAP already exists (from pool created by setup-network.sh)
+        # Check if TAP already exists
         result = subprocess.run(
             ["ip", "link", "show", tap_iface],
             capture_output=True,
         )
         
         if result.returncode != 0:
-            # TAP doesn't exist, try to find unused TAP from pool
-            logger.warning(f"[{tap_iface}] Not found, trying TAP pool...")
-            for i in range(250, 255):
+            # TAP doesn't exist, find any available TAP from whole system
+            logger.warning(f"[{tap_iface}] Not found, searching for available TAP...")
+            # Search for existing TAPs (created by network service)
+            for i in range(250, 500):
                 pool_tap = f"tap{i}"
                 result = subprocess.run(
                     ["ip", "link", "show", pool_tap],
                     capture_output=True,
                 )
                 if result.returncode == 0:
-                    # Found an existing TAP, use it
                     tap_iface = pool_tap
-                    logger.info(f"[{tap_iface}] Using TAP from pool")
+                    logger.info(f"[{tap_iface}] Using available TAP")
                     break
             else:
-                # No TAPs available, try calling network service
-                logger.warning("No TAP devices in pool, calling network service...")
+                # No TAPs available, call network service
+                logger.warning("No TAP devices available, calling network service...")
                 try:
                     subprocess.run(
                         ["sudo", "systemctl", "start", "clawmama-network"],
                         check=True,
                         capture_output=True,
                     )
-                    # Try pool again after network service
-                    for i in range(250, 255):
+                    # Try again after network service
+                    for i in range(250, 500):
                         pool_tap = f"tap{i}"
                         result = subprocess.run(
                             ["ip", "link", "show", pool_tap],
@@ -226,7 +226,7 @@ class FirecrackerManager:
                         )
                         if result.returncode == 0:
                             tap_iface = pool_tap
-                            logger.info(f"[{tap_iface}] Using TAP from pool after network service")
+                            logger.info(f"[{tap_iface}] Using TAP after network service")
                             break
                     else:
                         logger.error("Network service ran but no TAP devices available")
@@ -235,7 +235,7 @@ class FirecrackerManager:
                     logger.error(f"Failed to start network service: {e.stderr}")
                     return
 
-        # Bring up the interface with sudo AND set it up properly
+        # Set up TAP interface properly with sudo
         try:
             # Bring up the interface
             subprocess.run(
@@ -244,24 +244,21 @@ class FirecrackerManager:
                 capture_output=True,
                 text=True,
             )
-            # Ensure it's attached to bridge
+            logger.info(f"[{tap_iface}] Set interface up")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"[{tap_iface}] Failed to set interface up: {e.stderr}")
+
+        # Attach to bridge
+        try:
             subprocess.run(
                 ["sudo", "ip", "link", "set", tap_iface, "master", "br-clawmama"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
-            logger.info(f"[{tap_iface}] Set interface up and attached to bridge")
+            logger.info(f"[{tap_iface}] Attached to bridge br-clawmama")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[{tap_iface}] Failed to set up interface: {e.stderr}")
-
-        # Add to bridge with sudo
-        try:
-            subprocess.run(
-                ["sudo", "ip", "link", "set", tap_iface, "master", "br-clawmama"],
-                check=True,
-                capture_output=True,
-            )
+            logger.warning(f"[{tap_iface}] Failed to attach to bridge: {e.stderr}")
             logger.info(f"[{tap_iface}] Added to bridge br-clawmama")
         except subprocess.CalledProcessError as e:
             logger.warning(f"[{tap_iface}] Failed to add to bridge: {e.stderr}")
