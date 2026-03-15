@@ -1,0 +1,2 @@
+# clawkid dependencies (minimal - standard library only!)
+# No external dependencies needed
