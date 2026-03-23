@@ -12,11 +12,12 @@ import aiohttp
 from aiohttp import UnixConnector
 
 from clawmama.config import config
+from clawmama.vm.interface import VMManager
 
 logger = logging.getLogger("clawmama.firecracker")
 
 
-class FirecrackerManager:
+class FirecrackerManager(VMManager):
     """Manages Firecracker microVMs."""
 
     def __init__(self, vm_name: str):

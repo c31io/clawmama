@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import platform
 import subprocess
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -14,9 +15,30 @@ from telegram.ext import (
 )
 
 from clawmama.config import config
-from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupManager
+from clawmama.vm import (
+    VMDatabase,
+    VMManager,
+    FirecrackerManager,
+    VMProvisioner,
+    BackupManager,
+)
+
+# Import HyperVManager if available (Windows only)
+try:
+    from clawmama.vm.hyperv import HyperVManager
+except ImportError:
+    HyperVManager: type = None  # type: ignore[assignment]
 
 logger = logging.getLogger("clawmama.handlers")
+
+
+def get_vm_manager(vm_name: str) -> VMManager:
+    """Get the appropriate VM manager based on platform."""
+    if platform.system() == "Windows" and HyperVManager is not None:
+        manager = HyperVManager(vm_name)
+        manager.connect()
+        return manager
+    return FirecrackerManager(vm_name)
 
 
 def _check_authorized(update: Update) -> bool:
@@ -216,7 +238,7 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Starting VM '{vm_name}'...")
 
     try:
-        fc = FirecrackerManager(vm_name)
+        fc = get_vm_manager(vm_name)
 
         # Ensure VM config exists (create if needed)
         vm_config = await fc.create_vm(
@@ -265,7 +287,7 @@ async def stop_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Stopping VM '{vm_name}'...")
 
     try:
-        fc = FirecrackerManager(vm_name)
+        fc = get_vm_manager(vm_name)
         await fc.stop_vm()
 
         await get_db().update_vm_state(vm_name, "stopped")
@@ -298,7 +320,7 @@ async def pause_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        fc = FirecrackerManager(vm_name)
+        fc = get_vm_manager(vm_name)
         await fc.pause_vm()
 
         await get_db().update_vm_state(vm_name, "paused")
@@ -331,7 +353,7 @@ async def resume_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        fc = FirecrackerManager(vm_name)
+        fc = get_vm_manager(vm_name)
         await fc.resume_vm()
 
         await get_db().update_vm_state(vm_name, "running")
@@ -449,7 +471,7 @@ async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        fc = FirecrackerManager(vm_name)
+        fc = get_vm_manager(vm_name)
         await fc.delete_vm()
 
         await get_db().delete_vm(vm_name)
