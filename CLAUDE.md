@@ -35,3 +35,12 @@ Telegram bot for Firecracker microVM management with OpenClaw.
 - Use zstd (python-zstandard) for backup compression instead of gzip
 - Telegram bot handlers: add early return guards for `update.message` None checks
 - clawkid daemon runs inside VMs, communicates with host via vsock ports 5000/5001
+
+## Testing
+
+- `uv run pytest tests/ -v` - Run all tests
+- `uv run pytest tests/ --cov=clawmama.vm --cov-report=term-missing` - Run with coverage
+- `uv sync --all-extras` - Install test dependencies (pytest, pytest-asyncio, pytest-mock, pytest-cov)
+- Async fixtures require `@pytest_asyncio.fixture` decorator (not plain `@pytest.fixture`)
+- Set `asyncio_mode = "auto"` in `[tool.pytest.ini_options]` for pytest-asyncio auto mode
+- aiosqlite `:memory:` creates separate DB per connection - use temp file paths for test databases
