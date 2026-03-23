@@ -41,3 +41,7 @@ Thumbs.db
 *.log
 config_local.yaml
 config.yaml
+
+# Testing
+.coverage
+.pytest_cache/
