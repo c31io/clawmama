@@ -63,7 +63,9 @@ class Config:
     @property
     def bot_user_id(self) -> int | None:
         """Get authorized Telegram user ID."""
-        user_id = os.environ.get("TELEGRAM_BOT_USER_ID") or self._config.get("bot", {}).get("user_id")
+        user_id = os.environ.get("TELEGRAM_BOT_USER_ID") or self._config.get(
+            "bot", {}
+        ).get("user_id")
         if user_id is None:
             return None
         try:
@@ -76,7 +78,9 @@ class Config:
         """Get firecracker binary path."""
         return str(
             _expand_path(
-                self._config.get("firecracker", {}).get("binary_path", "~/.local/bin/firecracker")
+                self._config.get("firecracker", {}).get(
+                    "binary_path", "~/.local/bin/firecracker"
+                )
             )
         )
 

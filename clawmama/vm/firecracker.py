@@ -24,7 +24,9 @@ class FirecrackerManager:
         self.vm_dir = Path(config.vm_dir) / vm_name
         self.socket_path = f"/tmp/firecracker-{vm_name}.sock"
         self.kernel_args = "console=ttyS0 reboot=k panic=1 ip=dhcp random.trust_cpu=on"
-        self.vsock_only_kernel_args = "console=ttyS0 reboot=k panic=1 ip=none random.trust_cpu=on"
+        self.vsock_only_kernel_args = (
+            "console=ttyS0 reboot=k panic=1 ip=none random.trust_cpu=on"
+        )
 
     def _ensure_vm_dir(self):
         """Ensure VM directory exists."""
@@ -61,7 +63,9 @@ class FirecrackerManager:
         # Create disk image if it doesn't exist
         disk_path = self._get_drive_path()
         if not Path(disk_path).exists():
-            logger.info(f"[{self.vm_name}] Creating disk image: {disk_gb}G at {disk_path}")
+            logger.info(
+                f"[{self.vm_name}] Creating disk image: {disk_gb}G at {disk_path}"
+            )
             # Create sparse disk image
             subprocess.run(["truncate", "-s", f"{disk_gb}G", disk_path], check=True)
             # Format as ext4
@@ -71,10 +75,16 @@ class FirecrackerManager:
             logger.info(f"[{self.vm_name}] Using existing disk: {disk_path}")
 
         # Check vsock-only mode
-        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
-        print(f"[DEBUG] CLAWMAMA_VSOCK_ONLY env var: {os.environ.get('CLAWMAMA_VSOCK_ONLY', 'NOT SET')}, vsock_only: {vsock_only}")
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        print(
+            f"[DEBUG] CLAWMAMA_VSOCK_ONLY env var: {os.environ.get('CLAWMAMA_VSOCK_ONLY', 'NOT SET')}, vsock_only: {vsock_only}"
+        )
         boot_args = self.vsock_only_kernel_args if vsock_only else self.kernel_args
-        
+
         # Generate firecracker config
         fc_config = {
             "boot-source": {
@@ -98,7 +108,11 @@ class FirecrackerManager:
         }
 
         # Only add network if not in vsock-only mode
-        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         if vsock_only:
             # vsock-only mode: add vsock but no network
             fc_config["vsock"] = {
@@ -122,7 +136,9 @@ class FirecrackerManager:
         with open(config_path, "w") as f:
             json.dump(fc_config, f, indent=2)
 
-        logger.info(f"[{self.vm_name}] VM configuration complete: {vcpus} vCPU, {memory_mib} MB, {disk_gb} GB")
+        logger.info(
+            f"[{self.vm_name}] VM configuration complete: {vcpus} vCPU, {memory_mib} MB, {disk_gb} GB"
+        )
 
         return {
             "vcpus": vcpus,
@@ -137,7 +153,7 @@ class FirecrackerManager:
         # Use a fixed prefix for consistency
         # Valid MAC: 02:XX:XX:XX:XX:XX (locally administered, unicast)
         mac_int = hash(self.vm_name) % (256**5)
-        mac_bytes = mac_int.to_bytes(6, 'big')
+        mac_bytes = mac_int.to_bytes(6, "big")
         # Set bit 1 (locally administered) and clear bit 0 (unicast)
         mac_bytes = bytes([mac_bytes[0] & 0xFE | 0x02]) + mac_bytes[1:]
         return ":".join(f"{b:02x}" for b in mac_bytes)
@@ -157,7 +173,11 @@ class FirecrackerManager:
         logger.info(f"[{self.vm_name}] Using kernel: {config.kernel_path}")
 
         # Setup TAP interface (skip in vsock-only mode)
-        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in ("1", "true", "yes")
+        vsock_only = os.environ.get("CLAWMAMA_VSOCK_ONLY", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         if not vsock_only:
             tap_iface = self._get_network_iface()
             logger.info(f"[{self.vm_name}] Setting up TAP interface: {tap_iface}")
@@ -167,7 +187,9 @@ class FirecrackerManager:
 
         # Check firecracker binary exists
         if not Path(config.firecracker_binary).exists():
-            logger.error(f"[{self.vm_name}] Firecracker binary not found at {config.firecracker_binary}")
+            logger.error(
+                f"[{self.vm_name}] Firecracker binary not found at {config.firecracker_binary}"
+            )
             raise FileNotFoundError(
                 f"Firecracker binary not found at {config.firecracker_binary}. "
                 "Please install Firecracker."
@@ -195,7 +217,9 @@ class FirecrackerManager:
             start_new_session=True,
         )
 
-        logger.info(f"[{self.vm_name}] Firecracker process started, waiting for boot...")
+        logger.info(
+            f"[{self.vm_name}] Firecracker process started, waiting for boot..."
+        )
 
         # Wait for VM to boot and get IP
         await asyncio.sleep(3)
@@ -209,13 +233,13 @@ class FirecrackerManager:
     async def _setup_network(self, tap_iface: str):
         """Setup TAP interface - use pre-created pool, call network service if needed."""
         logger.info(f"[{tap_iface}] Setting up TAP interface...")
-        
+
         # Check if TAP already exists
         result = subprocess.run(
             ["ip", "link", "show", tap_iface],
             capture_output=True,
         )
-        
+
         if result.returncode != 0:
             # TAP doesn't exist, find any available TAP from whole system
             logger.warning(f"[{tap_iface}] Not found, searching for available TAP...")
@@ -248,7 +272,9 @@ class FirecrackerManager:
                         )
                         if result.returncode == 0:
                             tap_iface = pool_tap
-                            logger.info(f"[{tap_iface}] Using TAP after network service")
+                            logger.info(
+                                f"[{tap_iface}] Using TAP after network service"
+                            )
                             break
                     else:
                         logger.error("Network service ran but no TAP devices available")
@@ -315,7 +341,9 @@ class FirecrackerManager:
                 )
                 logger.info(f"[{self.vm_name}] Sent CtrlAltDel")
         except Exception as e:
-            logger.debug(f"[{self.vm_name}] Failed to send CtrlAltDel (VM may not be running): {e}")
+            logger.debug(
+                f"[{self.vm_name}] Failed to send CtrlAltDel (VM may not be running): {e}"
+            )
 
         # Kill the firecracker process
         try:

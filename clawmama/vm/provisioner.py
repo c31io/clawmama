@@ -25,7 +25,9 @@ class VMProvisioner:
     )
 
     # vmlinux from S3 (Firecracker official examples)
-    VMLINUX_URL = "https://s3.amazonaws.com/spec.ccfc.min/img/hello/kernel/hello-vmlinux.bin"
+    VMLINUX_URL = (
+        "https://s3.amazonaws.com/spec.ccfc.min/img/hello/kernel/hello-vmlinux.bin"
+    )
 
     def __init__(self):
         self.vm_dir = Path(config.vm_dir)
@@ -83,7 +85,7 @@ class VMProvisioner:
     async def setup_networking(self) -> bool:
         """Setup host networking for VMs (requires root via systemd service)."""
         import os
-        
+
         # Check if bridge already exists
         result = subprocess.run(
             ["ip", "link", "show", "br-clawmama"],
@@ -94,8 +96,10 @@ class VMProvisioner:
             return True
 
         # Try to run network setup script via sudo
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "setup-network.sh"
-        
+        script_path = (
+            Path(__file__).parent.parent.parent / "scripts" / "setup-network.sh"
+        )
+
         if script_path.exists():
             logger.info("Running network setup script via sudo...")
             try:
@@ -113,7 +117,7 @@ class VMProvisioner:
             except Exception as e:
                 logger.error(f"Failed to run network setup: {e}")
                 return False
-        
+
         logger.warning("Network setup script not found, skipping")
         return False
 

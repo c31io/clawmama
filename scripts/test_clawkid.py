@@ -3,10 +3,13 @@
 
 from clawmama.clawkid_host import ClawkidHostServer, ClawkidManager, ProxyManager
 
+
 def test_imports():
     print("Testing imports...")
     from clawmama.clawkid_host import ClawkidHostServer, ClawkidManager, ProxyManager
+
     print("✓ Imports OK")
+
 
 def test_clawkid_manager():
     print("Testing ClawkidManager...")
@@ -17,11 +20,13 @@ def test_clawkid_manager():
     manager.unregister_vm("test-vm")
     print("✓ Unregistered VM")
 
+
 def test_proxy_manager():
     print("Testing ProxyManager...")
     pm = ProxyManager(port=8888)
     print(f"✓ ProxyManager created (port {pm.port})")
     # Don't start actual proxy in test
+
 
 if __name__ == "__main__":
     test_imports()

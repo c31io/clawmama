@@ -18,6 +18,7 @@ from clawmama.vm import VMDatabase, FirecrackerManager, VMProvisioner, BackupMan
 
 logger = logging.getLogger("clawmama.handlers")
 
+
 def _check_authorized(update: Update) -> bool:
     """Check if user is authorized to use the bot."""
     if not update.message:
@@ -218,7 +219,9 @@ async def start_vm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fc = FirecrackerManager(vm_name)
 
         # Ensure VM config exists (create if needed)
-        vm_config = await fc.create_vm(vm.get("vcpus"), vm.get("memory_mib"), vm.get("disk_gb"))
+        vm_config = await fc.create_vm(
+            vm.get("vcpus"), vm.get("memory_mib"), vm.get("disk_gb")
+        )
         logger.info(f"[{vm_name}] VM config ready: {vm_config}")
 
         # Start the VM
@@ -463,11 +466,11 @@ async def msg_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /msg command - test message without Telegram user."""
     if not update.message:
         return
-    
+
     # Echo the message back - useful for testing without real Telegram user
     message_text = " ".join(context.args) if context.args else "(empty)"
     logger.info(f"[msg] Test message: {message_text}")
-    
+
     await update.message.reply_text(f"📝 Test message received: {message_text}")
 
 
@@ -525,15 +528,21 @@ async def create_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if vcpus < 1 or vcpus > config.max_vcpus:
-        await update.message.reply_text(f"vCPUs must be between 1 and {config.max_vcpus}.")
+        await update.message.reply_text(
+            f"vCPUs must be between 1 and {config.max_vcpus}."
+        )
         return
 
     if memory < 512 or memory > config.max_memory_mib:
-        await update.message.reply_text(f"Memory must be between 512 and {config.max_memory_mib} MB.")
+        await update.message.reply_text(
+            f"Memory must be between 512 and {config.max_memory_mib} MB."
+        )
         return
 
     if disk < 1 or disk > config.max_disk_gb:
-        await update.message.reply_text(f"Disk must be between 1 and {config.max_disk_gb} GB.")
+        await update.message.reply_text(
+            f"Disk must be between 1 and {config.max_disk_gb} GB."
+        )
         return
 
     # Check if VM already exists
@@ -589,18 +598,16 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # SSH into VM and install OpenClaw
-        install_script = (
-            "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard"
-        )
-        
+        install_script = "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard"
+
         result = await asyncio.create_subprocess_shell(
             f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@{ip_address} '{install_script}'",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        
+
         stdout, stderr = await result.communicate()
-        
+
         if result.returncode == 0:
             logger.info(f"OpenClaw installed successfully in {vm_name}")
         else:
@@ -610,10 +617,10 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⚠️ OpenClaw install had issues: {error_msg[:500]}\n"
                 "Continuing with clawkid installation..."
             )
-        
+
         # Install clawkid
         await update.message.reply_text("Installing clawkid...")
-        
+
         # Copy clawkid to VM via scp
         clawkid_install = """
             mkdir -p ~/clawkid
@@ -626,15 +633,15 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Start now
             nohup /usr/bin/python3 ~/clawkid/clawkid.py > ~/clawkid.log 2>&1 &
         """
-        
+
         result2 = await asyncio.create_subprocess_shell(
             f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@{ip_address} '{clawkid_install}'",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        
+
         stdout2, stderr2 = await result2.communicate()
-        
+
         if result2.returncode == 0:
             logger.info(f"clawkid installed successfully in {vm_name}")
             await update.message.reply_text(
@@ -647,7 +654,7 @@ async def install_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 f"❌ clawkid installation failed: {error_msg2[:500]}"
             )
-            
+
     except Exception as e:
         logger.exception(f"[{vm_name}] Failed to install")
         await update.message.reply_text(f"❌ Installation failed: {e}")

@@ -7,9 +7,8 @@ import os
 import sys
 from pathlib import Path
 
-from telegram import Update
 from telegram.ext import Application, MessageHandler, filters
-from telegram.ext import CallbackContext, DictPersistence
+from telegram.ext import DictPersistence
 
 from clawmama.config import config
 from clawmama.logging_ import setup_logging
@@ -30,9 +29,10 @@ for var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
 
 class MockContext:
     """Mock context for CLI testing."""
+
     def __init__(self, args=None):
         self._args = args or []
-    
+
     @property
     def args(self):
         return self._args
@@ -41,7 +41,7 @@ class MockContext:
 async def run_cli_command(cmd: str, args: list[str]):
     """Run a command from CLI, simulating a Telegram message."""
     logger = setup_logging()
-    
+
     # Parse command
     if not cmd:
         print("Usage: clawmama msg <command> [args...]")
@@ -49,19 +49,19 @@ async def run_cli_command(cmd: str, args: list[str]):
         print("         clawmama msg /msg hello world")
         print("         clawmama msg /list")
         return
-    
+
     # Extract command (with or without /)
     if not cmd.startswith("/"):
         cmd = "/" + cmd
     cmd_name = cmd.lstrip("/")
     cmd_args = args
-    
+
     # Setup environment
     await setup_environment()
-    
+
     # Import handlers
     from clawmama.bot import handlers
-    
+
     # Map commands to handler functions
     command_map = {
         "start": handlers.start_command,
@@ -79,24 +79,24 @@ async def run_cli_command(cmd: str, args: list[str]):
         "create": handlers.create_command,
         "install": handlers.install_command,
     }
-    
+
     handler = command_map.get(cmd_name)
     if not handler:
         print(f"Unknown command: {cmd}")
         print(f"Available: {', '.join(command_map.keys())}")
         return
-    
+
     # Create mock update
     output = []
-    
+
     class MockMessage:
         async def reply_text(self, text, **kwargs):
             output.append(text)
             print(text)
-    
+
     class MockUpdate:
         message = MockMessage()
-    
+
     # Run handler
     context = MockContext(cmd_args)
     try:
@@ -127,7 +127,7 @@ def main():
     # Example: clawmama -- /create vm1 --vcpus 2
     #   CLI: clawmama -- /create vm1
     #   Bot: /create vm1 --vcpus 2
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "--":
         # CLI mode: remaining args go to bot command
         # sys.argv = ["main.py", "--", "/create", "vm1", "--vcpus", "2"]
@@ -137,7 +137,7 @@ def main():
             cmd_args = bot_args[1:]
             asyncio.run(run_cli_command(cmd, cmd_args))
             return
-    
+
     # Check for simple msg subcommand
     if len(sys.argv) > 2 and sys.argv[1] == "msg":
         # sys.argv = ["main.py", "msg", "/create", "vm1"]
@@ -145,10 +145,10 @@ def main():
         cmd_args = sys.argv[3:] if len(sys.argv) > 3 else []
         asyncio.run(run_cli_command(cmd, cmd_args))
         return
-    
+
     # Bot mode: start Telegram bot
     run_bot()
-    
+
     # Bot mode: start Telegram bot
     run_bot()
 
@@ -174,10 +174,7 @@ def run_bot():
 
     # Create application with persistence for ConversationHandler
     application = (
-        Application.builder()
-        .token(token)
-        .persistence(DictPersistence())
-        .build()
+        Application.builder().token(token).persistence(DictPersistence()).build()
     )
 
     # Setup handlers
@@ -185,7 +182,9 @@ def run_bot():
 
     # Catch-all handler for debugging
     async def catch_all(update, context):
-        logger.info("Catch-all received: update=%s, update.message=%s", update, update.message)
+        logger.info(
+            "Catch-all received: update=%s, update.message=%s", update, update.message
+        )
 
     application.add_handler(MessageHandler(filters.ALL, catch_all))
 
