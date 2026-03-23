@@ -84,72 +84,56 @@ class Config:
             )
         )
 
+    def _get_vm_path(self, key: str, default: str) -> str:
+        """Get a path from vm section."""
+        vm_config = self._config.get("vm", {})
+        if key in vm_config:
+            return str(_expand_path(vm_config[key]))
+        return str(_expand_path(default))
+
     @property
     def kernel_path(self) -> str:
         """Get kernel path."""
-        return str(
-            _expand_path(
-                self._config.get("firecracker", {}).get(
-                    "kernel_path", "~/.local/share/clawmama/vmlinux"
-                )
-            )
-        )
+        return self._get_vm_path("kernel_path", "~/.local/share/clawmama/vmlinux")
 
     @property
     def image_path(self) -> str:
         """Get base image path."""
-        return str(
-            _expand_path(
-                self._config.get("firecracker", {}).get(
-                    "image_path", "~/.local/share/clawmama/ubuntu-base.img"
-                )
-            )
+        return self._get_vm_path(
+            "image_path", "~/.local/share/clawmama/ubuntu-base.img"
         )
 
     @property
     def vm_dir(self) -> str:
         """Get VM working directory."""
-        return str(
-            _expand_path(
-                self._config.get("firecracker", {}).get(
-                    "vm_dir", "~/.local/share/clawmama/vms"
-                )
-            )
-        )
+        return self._get_vm_path("vm_dir", "~/.local/share/clawmama/vms")
 
     @property
     def data_dir(self) -> str:
         """Get data directory for database and images."""
-        return str(
-            _expand_path(
-                self._config.get("firecracker", {}).get(
-                    "data_dir", "~/.local/share/clawmama"
-                )
-            )
-        )
+        return self._get_vm_path("data_dir", "~/.local/share/clawmama")
+
+    def _get_vm_default(self, key: str, default: int) -> int:
+        """Get a default resource value from vm section."""
+        vm_defaults = self._config.get("vm", {}).get("default", {})
+        if key in vm_defaults:
+            return vm_defaults[key]
+        return default
 
     @property
     def default_vcpus(self) -> int:
         """Get default vCPU count."""
-        return self._config.get("firecracker", {}).get("default", {}).get("vcpus", 2)
+        return self._get_vm_default("vcpus", 2)
 
     @property
     def default_memory_mib(self) -> int:
         """Get default memory in MiB."""
-        return (
-            self._config.get("firecracker", {})
-            .get("default", {})
-            .get("memory_mib", 2048)
-        )
+        return self._get_vm_default("memory_mib", 2048)
 
     @property
     def default_disk_gb(self) -> int:
         """Get default disk size in GB."""
-        return (
-            self._config.get("firecracker", {})
-            .get("default", {})
-            .get("disk_size_gb", 10)
-        )
+        return self._get_vm_default("disk_size_gb", 10)
 
     @property
     def host_ip(self) -> str:

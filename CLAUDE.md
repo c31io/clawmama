@@ -25,8 +25,9 @@ Telegram bot for Firecracker microVM management with OpenClaw.
 - `clawmama/clawkid_host.py` - Host-side communication with VM clawkid daemon via vsock
 - `clawmama/config/` - Configuration loading from YAML
 
-## Patterns
+## Design Principles
 
+- **Simplicity over compatibility** - Prefer clean, simple code over backward compatibility shims
 - Use lazy initialization (get_db()) for global singletons to avoid path errors
 - Use UnixConnector from aiohttp for Firecracker API socket communication
 - Use absolute imports (from clawmama.x.y) not relative (from x.y) for NixOS portability
