@@ -1,13 +1,11 @@
-"""Hyper-V VM manager using WinRM."""
+"""Hyper-V VM manager using local PowerShell."""
 
+import json
 import logging
-import os
 import platform
 import subprocess
 from pathlib import Path
 from typing import Optional
-
-import winrm
 
 from clawmama.config import config
 from clawmama.vm.interface import VMManager
@@ -21,12 +19,10 @@ def is_windows() -> bool:
 
 
 class HyperVManager(VMManager):
-    """Manages Hyper-V VMs via WinRM."""
+    """Manages Hyper-V VMs via local PowerShell."""
 
-    def __init__(self, vm_name: str, host: str = "localhost"):
+    def __init__(self, vm_name: str):
         self.vm_name = vm_name
-        self.host = host
-        self.session: Optional[winrm.Session] = None
         self.vm_dir = Path(config.vm_dir) / vm_name
 
     @staticmethod
@@ -47,26 +43,12 @@ class HyperVManager(VMManager):
         except FileNotFoundError:
             return False
 
-    def connect(self, username: str | None = None, password: str | None = None):
-        """Connect to Hyper-V host via WinRM."""
-        if platform.system() != "Windows":
-            raise RuntimeError("Hyper-V is only available on Windows")
-
-        # Use current user credentials if not provided
-        if not username:
-            username = os.environ.get("USERNAME", os.environ.get("USER", ""))
-
-        self.session = winrm.Session(
-            self.host,
-            auth=(username, password or ""),
+    def _run_ps(self, script: str) -> subprocess.CompletedProcess:
+        """Run PowerShell script locally."""
+        return subprocess.run(
+            ["powershell", "-Command", script],
+            capture_output=True,
         )
-        logger.info(f"[{self.vm_name}] Connected to {self.host} via WinRM")
-
-    def _run_ps(self, script: str) -> winrm.Response:
-        """Run PowerShell script via WinRM."""
-        if not self.session:
-            raise RuntimeError("Not connected. Call connect() first.")
-        return self.session.run_ps(script)
 
     async def create_vm(
         self,
@@ -92,48 +74,44 @@ class HyperVManager(VMManager):
         # Check if VM already exists
         script = f'Get-VM -Name "{self.vm_name}" -ErrorAction SilentlyContinue'
         result = self._run_ps(script)
-        std_out_str = (
-            result.std_out.decode()
-            if isinstance(result.std_out, bytes)
-            else result.std_out
-        )
+        std_out_str = result.stdout.decode() if result.stdout else ""
 
-        if result.status_code == 0 and self.vm_name in std_out_str:
+        if result.returncode == 0 and self.vm_name in std_out_str:
             logger.info(f"[{self.vm_name}] VM already exists")
         else:
             # Create the VM
-            create_script = f'''
+            create_script = f"""
             New-VM -Name "{self.vm_name}" -MemoryStartupBytes {memory_mib}MB -Generation 2
             Set-VMProcessor -VMName "{self.vm_name}" -Count {vcpus}
-            '''
+            """
             result = self._run_ps(create_script)
-            if result.status_code != 0:
-                raise RuntimeError(f"Failed to create VM: {result.std_err}")
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to create VM: {result.stderr}")
             logger.info(f"[{self.vm_name}] VM created")
 
         # Create VHDX disk if needed
         vhd_path = self.vm_dir / "root.vhdx"
         if not vhd_path.exists():
             logger.info(f"[{self.vm_name}] Creating VHDX: {disk_gb}GB")
-            script = f'''
+            script = f"""
             New-VHD -Path "{vhd_path}" -SizeBytes {disk_gb}GB -Dynamic
             Add-VMHardDiskDrive -VMName "{self.vm_name}" -Path "{vhd_path}" -ControllerType SCSI
-            '''
+            """
             result = self._run_ps(script)
-            if result.status_code != 0:
-                raise RuntimeError(f"Failed to create disk: {result.std_err}")
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to create disk: {result.stderr}")
             logger.info(f"[{self.vm_name}] Disk created")
         else:
             logger.info(f"[{self.vm_name}] Using existing disk: {vhd_path}")
 
         # Set up networking (connect to default switch)
-        script = f'''
+        script = f"""
         $switch = Get-VMSwitch -DefaultSwitch -ErrorAction SilentlyContinue
         if ($switch) {{
             Connect-VMNetworkAdapter -VMName "{self.vm_name}" -SwitchName $switch.Name
         }}
-        '''
-        result = self._run_ps(script)
+        """
+        self._run_ps(script)
         logger.info(f"[{self.vm_name}] Network configured")
 
         logger.info(
@@ -149,17 +127,14 @@ class HyperVManager(VMManager):
 
     async def start_vm(self) -> str | None:
         """Start the Hyper-V VM."""
-        if not self.session:
-            raise RuntimeError("Not connected. Call connect() first.")
-
         logger.info(f"[{self.vm_name}] Starting VM...")
 
         # Start VM
         script = f'Start-VM -Name "{self.vm_name}"'
         result = self._run_ps(script)
 
-        if result.status_code != 0:
-            raise RuntimeError(f"Failed to start VM: {result.std_err}")
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to start VM: {result.stderr}")
 
         logger.info(f"[{self.vm_name}] VM started")
 
@@ -172,20 +147,15 @@ class HyperVManager(VMManager):
 
     async def _get_vm_ip(self, timeout: int = 60) -> Optional[str]:
         """Get VM IP address."""
-        script = f'''
+        script = f"""
         $vm = Get-VM -Name "{self.vm_name}"
         $adapter = $vm.NetworkAdapters | Select-Object -First 1
         $adapter.IPAddresses | Where-Object {{ $_ -match "^\\d+\\.\\d+\\.\\d+\\.\\d+$" }} | Select-Object -First 1
-        '''
+        """
         result = self._run_ps(script)
-        std_out_bytes = result.std_out
-        std_out_str = (
-            std_out_bytes.decode()
-            if isinstance(std_out_bytes, bytes)
-            else std_out_bytes
-        )
+        std_out_str = result.stdout.decode() if result.stdout else ""
 
-        if result.status_code == 0 and std_out_str.strip():
+        if result.returncode == 0 and std_out_str.strip():
             ip = std_out_str.strip()
             logger.info(f"[{self.vm_name}] IP: {ip}")
             return ip
@@ -195,17 +165,13 @@ class HyperVManager(VMManager):
 
     async def stop_vm(self) -> bool:
         """Stop the Hyper-V VM."""
-        if not self.session:
-            logger.warning("[{self.vm_name}] Not connected, cannot stop VM")
-            return False
-
         logger.info(f"[{self.vm_name}] Stopping VM...")
 
         script = f'Stop-VM -Name "{self.vm_name}" -Force'
         result = self._run_ps(script)
 
-        if result.status_code != 0:
-            logger.error(f"Failed to stop VM: {result.std_err}")
+        if result.returncode != 0:
+            logger.error(f"Failed to stop VM: {result.stderr}")
             return False
 
         logger.info(f"[{self.vm_name}] VM stopped")
@@ -213,30 +179,21 @@ class HyperVManager(VMManager):
 
     async def pause_vm(self) -> bool:
         """Pause the VM (suspend)."""
-        if not self.session:
-            return False
-
         logger.info(f"[{self.vm_name}] Pausing VM...")
         script = f'Suspend-VM -Name "{self.vm_name}"'
         result = self._run_ps(script)
-        return result.status_code == 0
+        return result.returncode == 0
 
     async def resume_vm(self) -> bool:
         """Resume the VM (resume from suspend)."""
-        if not self.session:
-            return False
-
         logger.info(f"[{self.vm_name}] Resuming VM...")
         script = f'Resume-VM -Name "{self.vm_name}"'
         result = self._run_ps(script)
-        return result.status_code == 0
+        return result.returncode == 0
 
     async def get_status(self) -> dict:
         """Get VM status."""
-        if not self.session:
-            return {"state": "disconnected"}
-
-        script = f'''
+        script = f"""
         $vm = Get-VM -Name "{self.vm_name}" -ErrorAction SilentlyContinue
         if ($vm) {{
             @{{
@@ -248,19 +205,11 @@ class HyperVManager(VMManager):
         }} else {{
             {{"state": "not_found"}} | ConvertTo-Json
         }}
-        '''
+        """
         result = self._run_ps(script)
 
-        if result.status_code == 0:
-            import json
-
-            std_out_bytes = result.std_out
-            std_out_str = (
-                std_out_bytes.decode()
-                if isinstance(std_out_bytes, bytes)
-                else std_out_bytes
-            )
-
+        if result.returncode == 0:
+            std_out_str = result.stdout.decode() if result.stdout else ""
             try:
                 return json.loads(std_out_str)
             except json.JSONDecodeError:
@@ -273,7 +222,7 @@ class HyperVManager(VMManager):
 
     def cleanup(self):
         """Clean up resources."""
-        self.session = None
+        pass
 
     async def delete_vm(self):
         """Delete the VM and all its resources."""
@@ -286,8 +235,8 @@ class HyperVManager(VMManager):
         script = f'Remove-VM -Name "{self.vm_name}" -Force'
         result = self._run_ps(script)
 
-        if result.status_code != 0:
-            logger.warning(f"Failed to remove VM: {result.std_err}")
+        if result.returncode != 0:
+            logger.warning(f"Failed to remove VM: {result.stderr}")
 
         # Optionally remove VHD
         vhd_path = self.vm_dir / "root.vhdx"
