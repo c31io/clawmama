@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -28,6 +29,19 @@ class FirecrackerManager(VMManager):
         self.vsock_only_kernel_args = (
             "console=ttyS0 reboot=k panic=1 ip=none random.trust_cpu=on"
         )
+
+    @classmethod
+    def is_available(cls) -> bool:
+        """Check if Firecracker is available on this system.
+
+        Returns True if firecracker binary and kernel are available.
+        """
+        try:
+            firecracker_path = Path(config.firecracker_binary)
+            kernel_path = Path(config.kernel_path)
+            return firecracker_path.exists() and kernel_path.exists()
+        except Exception:
+            return False
 
     def _ensure_vm_dir(self):
         """Ensure VM directory exists."""
@@ -71,7 +85,8 @@ class FirecrackerManager(VMManager):
             subprocess.run(["truncate", "-s", f"{disk_gb}G", disk_path], check=True)
             # Format as ext4
             logger.info(f"[{self.vm_name}] Formatting disk as ext4...")
-            subprocess.run(["/usr/sbin/mkfs.ext4", "-F", disk_path], check=True)
+            mkfs_path = shutil.which("mkfs.ext4") or "/usr/sbin/mkfs.ext4"
+            subprocess.run([mkfs_path, "-F", disk_path], check=True)
         else:
             logger.info(f"[{self.vm_name}] Using existing disk: {disk_path}")
 
