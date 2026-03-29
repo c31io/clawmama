@@ -3,6 +3,8 @@
 Telegram bot for managing Firecracker microVMs with OpenClaw.
 
 > **Warning: Early Stage** - This project is under active development. APIs and features may change.
+> 
+> **Warning: Vibe Coding** - Code may not make sense. Actually, it may not work at all.
 
 ## Contributing
 
